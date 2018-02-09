@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["jrconlin <me+crypt@jrconlin.com>"]
 
 [dependencies]
-diesel = { version = "1.0", features = ["postgres"] }
+diesel = { version = "1.0", features = ["mysql"] }
 dotenv = "0.9"
 rocket = "0.3"
 rocket_codegen = "0.3"

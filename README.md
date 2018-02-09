@@ -7,4 +7,4 @@ See [API doc](https://docs.google.com/document/d/1Wxqf1a4HDkKgHDIswPmhmdvk8KPoME
 ***NOTE***: This will require:
  * rust nightly. See [rocket.rs Getting Started](https://rocket.rs/guide/getting-started/) for
 additional steps.
- * libpq and libpq-dev installed
+ * libmysql-dev installed
