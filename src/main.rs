@@ -87,9 +87,11 @@ impl Serialize for MResponse {
 #[post("/v1/rtu/<broadcaster_id>/<collection_id>", data = "<version>")]
 fn accept(broadcaster_id: String, collection_id: String, version: VersionInput) -> Json<MResponse>{
     /// Set a version for a broadcaster / collection
+
     println!("broadcaster: {:?}\n\tcollection: {:?}\n\tversion:{:?}",
         broadcaster_id, collection_id, version.value
     );
+
     // TODO: Validate auth cookie
     // TODO: Validate broadcaster & collection; create SenderID
     // TODO: publish version change / update local table.
