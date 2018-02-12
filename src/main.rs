@@ -1,8 +1,7 @@
 #![feature(plugin)]
 #![plugin(rocket_codegen)]
 
-#[macro_use]
-extern crate error_chain;
+#[macro_use] extern crate failure;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate rocket;
@@ -10,19 +9,17 @@ extern crate rocket_contrib;
 extern crate diesel;
 extern crate rusoto_core;
 extern crate rusoto_sns;
-#[macro_use]
-extern crate serde_derive;
+#[macro_use] extern crate serde_derive;
 extern crate serde_json;
 extern crate serde;
 
-mod errors;
 
 use std::io::Read;
 
 use hyper::client::Connect;
 use hyper::client::HttpConnector;
 use hyper_tls::HttpsConnector;
-use errors::*;
+use failure::Error;
 use rocket::{Request, Data, Outcome, Rocket};
 use rocket::data::{self, FromData};
 use rocket::http::{Status};
@@ -34,6 +31,22 @@ use rusoto_sns::*;
 use serde::ser::{Serialize, Serializer, SerializeStruct};
 
 //TODO: divide into sane components.
+
+// ==== Error Handling ( see https://boats.gitlab.io/blog/post/2017-11-30-failure-0-1-1/)
+
+#[derive(Debug, Fail)]
+enum MegaphoneError {
+    #[fail(display = "{}: Invalid Version info (must be URL safe Base 64)", name)]
+    InvalidVersionDataError {
+        name: String,
+    },
+
+    #[fail(display = "{}: Version information not included in body of update", name)]
+    MissingVersionDataError {
+        name: String,
+    },
+
+}
 
 // ==== PubSub
 // TODO: create new topic if not present?
@@ -152,7 +165,7 @@ fn create_rocket() -> Rocket {
 //fn start_aws<C>() -> Result<SnsClient<DefaultCredentialsProvider, hyper::Client<C>>>
 //    where C: Connect
 //fn start_aws<C>() -> Result<SnsClient<DefaultCredentialsProvider, hyper::Client<HttpsConnector<HttpConnector>>>>
-fn start_aws() -> Result<Box<Sns>>
+fn start_aws() -> Result<Box<Sns>, Error>
 {
     const SNS_TOPIC_ARN: &str = "arn:aws:sns:us-west-2:927034868273:megaphone_updates";  //TODO: config
 
