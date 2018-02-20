@@ -7,8 +7,11 @@ extern crate hyper;
 extern crate hyper_tls;
 extern crate rocket;
 extern crate rocket_contrib;
+#[macro_use]
 extern crate diesel;
 #[macro_use] extern crate mysql;
+extern crate r2d2;
+extern crate r2d2_diesel;
 extern crate rusoto_core;
 extern crate rusoto_sns;
 extern crate rusoto_sqs;
@@ -16,6 +19,9 @@ extern crate rusoto_sqs;
 extern crate serde_json;
 extern crate serde;
 
+extern crate dotenv;
+
+mod db;
 mod http;
 
 use std::str;
@@ -345,5 +351,5 @@ fn main() {
     let aws_service = AwsService::new(config.aws);
     let database = Database::new(config.database);
 
-    create_rocket().launch();
+    create_rocket(10).launch();
 }

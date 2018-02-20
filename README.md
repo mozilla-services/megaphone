@@ -5,6 +5,15 @@ See [API doc](https://docs.google.com/document/d/1Wxqf1a4HDkKgHDIswPmhmdvk8KPoME
 
 
 ***NOTE***: This will require:
- * rust nightly. See [rocket.rs Getting Started](https://rocket.rs/guide/getting-started/) for
-additional steps.
- * libmysql-dev installed
+
+ * rust nightly. See [rocket.rs Getting
+   Started](https://rocket.rs/guide/getting-started/) for additional steps.
+ * mysql
+ * libmysqlclient installed (brew install mysql on macOS, apt-get install
+   libmysqlclient-dev on Ubuntu)
+ * diesel cli: (cargo install diesel_cli --no-default-features --features
+   "mysql")
+
+Run:
+
+  * $ diesel setup
