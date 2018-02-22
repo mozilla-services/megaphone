@@ -21,7 +21,7 @@ use std::str;
 use std::collections::{HashMap};
 use std::env;
 
-use config::{ConfigError, Config, File};
+use config::{ConfigError, Config, Value, File};
 use failure::Error;
 use rocket::{Request, Data, Rocket};
 use rocket::data::{self, FromData};
@@ -200,14 +200,75 @@ impl Settings {
 
         // Read the default config file
         config.merge(File::with_name("config/default"))?;
+        let dict = config.clone().get_table("database")?;
+        /*
+        println!("RR: {:?}", match dict.get("port") {
+            Some(v) => v.to_string(),
+            None => String::from("undefined"),
+        });
+        */
         // Set the run mode to "dev" (or whatever is in RUN_MODE)
         let env = env::var("RUN_MODE").unwrap_or("dev".into());
         // pull in the run mode's configs (optional)
         config.merge(File::with_name(&format!("config/{}", env)).required(false))?;
         // And the local, optional config
         config.merge(File::with_name("config/local").required(false))?;
+        // set defaults
+        let check = config.clone().try_into::<HashMap<String, String>>()?;
 
-        config.try_into()
+        let debug = match config.get_bool("debug") {
+            Ok(v) => v,
+            Err(_) => true,
+        };
+        let db_dict = match config.clone().get_table("database"){
+            Ok(v) => v,
+            Err(_) => HashMap::new(),
+        };
+        let database = DatabaseConfig {
+            host: (match db_dict.get("host") {
+                Some(v) => v.to_string(),
+                None => String::from("localhost")
+            }),
+            port: (match db_dict.get("port") {
+                Some(v) => v.to_string().parse::<u16>().expect("Invalid port number"),
+                None => 3306
+            }),
+            username: (match db_dict.get("username") {
+                Some(v) => v.to_string(),
+                None => String::from("")
+            }),
+            password: (match db_dict.get("password") {
+                Some(v) => v.to_string(),
+                None => String::from("")
+            }),
+            tablename: (match db_dict.get("tablename") {
+                Some(v) => v.to_string(),
+                None => String::from("megaphone_services")
+            }),
+        };
+        let aws_dict = match config.clone().get_table("aws") {
+            Ok(v) => v,
+            Err(_) => HashMap::new()
+        };
+        let aws = AwsConfig {
+            region: (match aws_dict.get("region") {
+                Some(v) => v.to_string(),
+                None => String::from("uswest2")
+            }).parse::<Region>().expect("Invalid region"),
+            sns_topic: (match aws_dict.get("sns_topic") {
+                Some(v) => v.to_string(),
+                None => String::from("arn:aws:sns:us-west-2:927034868273:megaphone_updates")
+            }),
+            sqs_prefix: (match aws_dict.get("sqs_prefix") {
+                Some(v) => v.to_string(),
+                None => String::from("megaphone_")
+            }),
+        };
+        Ok(Settings {
+            debug: debug,
+            database: database,
+            aws: aws,
+        })
     }
 }
 
@@ -381,6 +442,7 @@ fn main() {
     // local cache
 
     let config = Settings::new().expect("Could not get settings");
+    println!("config {:?}", config);
     let aws_service = AwsService::new(config.aws);
     let database = Database::new(config.database);
 
