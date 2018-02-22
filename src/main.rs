@@ -2,6 +2,7 @@
 #![plugin(rocket_codegen)]
 
 #[macro_use] extern crate failure;
+extern crate config;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate rocket;
@@ -17,23 +18,19 @@ extern crate serde;
 
 use std::io::Read;
 use std::str;
-use std::collections;
+use std::collections::{HashMap};
+use std::env;
 
-use hyper::client::Connect;
-use hyper::client::HttpConnector;
-use hyper_tls::HttpsConnector;
+use config::{ConfigError, Config, File};
 use failure::Error;
-use rocket::{Request, Data, Outcome, Rocket};
+use rocket::{Request, Data, Rocket};
 use rocket::data::{self, FromData};
 use rocket::http::{Status};
 use rocket::Outcome::*;
 use rocket_contrib::Json;
-use rusoto_core::{DefaultCredentialsProvider, Region, default_tls_client};
-use rusoto_core::request::DispatchSignedRequest;
-use rusoto_sns::*;
-use rusoto_sqs::*;
-use mysql;
-use serde::ser::{Serialize, Serializer, SerializeStruct};
+use rusoto_core::{Region};
+//use rusoto_sns::{Sns, SnsClient, GetTopicAttributesInput};
+//use rusoto_sqs::{Sqs, SqsClient, ListQueuesRequest};
 
 //TODO: divide into sane components.
 
@@ -63,7 +60,8 @@ struct VersionInput {
 }
 // ==== mysql
 
-struct MysqlConfig {
+#[derive(Debug, Deserialize)]
+struct DatabaseConfig {
     host: String,
     username: String,
     password: String,
@@ -71,23 +69,23 @@ struct MysqlConfig {
     tablename: String,
 }
 
-impl Default for MysqlConfig {
-    fn default() -> MysqlConfig {
-        MysqlConfig {
-            host: "localhost",
-            username: "",
-            password: "",
+impl Default for DatabaseConfig {
+    fn default() -> DatabaseConfig {
+        DatabaseConfig {
+            host: String::from("localhost"),
+            username: String::from(""),
+            password: String::from(""),
             port: 3306,
-            tablename: "megaphone_sevices",
+            tablename: String::from("megaphone_sevices"),
         }
     }
 }
 
-impl MysqlConfig {
+impl DatabaseConfig {
     fn dsn(&self) -> String {
-        let mut user = String.from("");
-        let mut port = String.from("");
-        if self.username || self.password {
+        let mut user = String::from("");
+        let mut port = String::from("");
+        if (self.username.len() | self.password.len()) > 0 {
             user = format!("{}:{}@", self.username, self.password);
         }
         if self.port != 3306 {
@@ -98,20 +96,26 @@ impl MysqlConfig {
 }
 
 struct Database {
-    config: MysqlConfig
+    config: DatabaseConfig
 }
 
 impl Database {
-    fn login(mut self) -> mysql::Pool {
+    fn new(config: DatabaseConfig) -> Database {
+        Database {
+            config: config,
+        }
+    }
+
+    fn login(&self) -> mysql::Pool {
         mysql::Pool::new(self.config.dsn()).expect("Could not connect to database")
     }
 
     fn create(&self) -> Result<mysql::Pool, Error> {
-        pool = self.login();
+        let pool = self.login();
         pool.prep_exec(r"create table if not exists :table_name (service_id text not null,
         version text not null, change_number integer not null, PRIMARY KEY('service_id')",
-                       params!{"table_name" => self.config.tablename}
-        );
+                       params!{"table_name" => self.config.tablename.clone()}
+        )?;
         Ok(pool)
     }
 
@@ -128,54 +132,88 @@ impl Database {
         select @change; // return the change number
         */
         for mut stmt in pool.prepare(
-            r"Insert into :table_name (service_id, version ) values (:service_id,:version)") {
-            let version = stmt.execute(
+            r"Insert into :table_name (service_id, version ) values (:service_id, :version)") {
+            stmt.execute(
                 params!{
-                "table_name" => self.config.tablename,
-                "service_id" => serviceid,
-                "version" = version
+                "table_name" => self.config.tablename.clone(),
+                "service_id" => serviceid.clone(),
+                "version" => version.clone()
                 }
             ).expect("Could not add serviceid");
-            Ok(version)
         }
+        Ok(String::from("TBD: Increment"))
     }
 
     fn snapshot(&self) -> Result<HashMap<String, String>, Error> {
-        let result :Hashmap<String, String> = HashMap::new();
         let pool = self.login();
-        let items = pool
+        let mut reply = HashMap::new();
+        let content: Vec<(String, String)> = pool
             .prep_exec("select serviceid, version from :table_name",
-                       params!("table_name", self.config.tablename))
+                       params!("table_name" => self.config.tablename.clone()))
             .map(|result| result
                 .map(|row | {
-                    let (serviceid, version) = mysql::from_row(row);
-                    result.insert(serviceid, version);
-                    }));
-        Ok(results)
+                        let rowdata = row.expect("Could not get row data");
+                        let (serviceid, version) = mysql::from_row::<(String, String)>(rowdata);
+                        (serviceid.clone(), version.clone())
+                    })
+                .collect())
+            .unwrap();
+        for (key, value) in content {
+            reply.insert(key, value);
+        }
+        Ok(reply)
     }
 
     fn get(&self, serviceid: String) -> Result<String, Error> {
-        pool = self.login();
+        let pool = self.login();
         let version: String = pool.prep_exec(
             "select version from :table_name where serviceid = :service_id limit 1",
             params! {
-                "table_name"=>self.config.tablename,
+                "table_name"=>self.config.tablename.clone(),
                 "service_id"=>serviceid
             })
-            .map(|result| {
-                result
-                    .expect("Failed to query database")
-                    .map(|row: mysql::Row| {
-                        let (version) = mysql::from_row(row);
+            .map(|result| result
+                .map(|row| {
+                        let rowdata = row.expect("Could not get row data");
+                        let version:String = mysql::from_row(rowdata);
                         version
                     })
-                    .collect()
-            }).expect("Failed to fetch value");
+                .collect()
+            ).expect("Failed to fetch value");
         Ok(version)
     }
 }
 
+// ==== Config
+
+#[derive(Debug, Deserialize)]
+struct Settings {
+    debug: bool,
+    database: DatabaseConfig,
+    aws: AwsConfig,
+    // TODO: connection config
+}
+
+impl Settings {
+    fn new() -> Result<Self, ConfigError> {
+        let mut config = Config::new();
+
+        // Read the default config file
+        config.merge(File::with_name("config/default"))?;
+        // Set the run mode to "dev" (or whatever is in RUN_MODE)
+        let env = env::var("RUN_MODE").unwrap_or("dev".into());
+        // pull in the run mode's configs (optional)
+        config.merge(File::with_name(&format!("config/{}", env)).required(false))?;
+        // And the local, optional config
+        config.merge(File::with_name("config/local").required(false))?;
+
+        config.try_into()
+    }
+}
+
 // ==== AWS
+// # Replace with websocket/
+#[derive(Debug, Deserialize)]
 struct AwsConfig {
     region: Region,
     sns_topic: String,
@@ -194,50 +232,24 @@ impl Default for AwsConfig {
 }
 
 struct AwsService {
-    sns: SnsClient<DefaultCredentialsProvider, RequestDispatcher>,
-    sqs: SqsClient<DefaultCredentialsProvider, RequestDispatcher>,
     config: AwsConfig,
 }
 
 impl AwsService {
-    fn new(config: &AwsConfig)-> AwsService {
-        let dispatcher = default_tls_client()?;
-        let credentials = DefaultCredentialsProvider::new()?;
-        let reply = AwsService{
-            config: config.clone(),
-            sqs: SqsClient::new(
-                dispatcher.clone(),
-                credentials.clone(),
-                region.clone()),
-            sns: SnsClient::new(
-                dispatcher.clone(),
-                credentials.clone(),
-                region.clone()),
+    fn new(config: AwsConfig)-> AwsService {
+        let services = AwsService{
+            config: config,
         };
+        // in spite of what https://github.com/rusoto/rusoto/blob/master/integration_tests/tests/sns.rs says,
+        // these don't work. "simple()" is undefined.
+        /*
+        let sqs = SqsClient::simple(config.region);
+        let sns = SnsClient::simple(config.region);
 
-        {
-            // read the latest versions from the db;
-            let scan = ScanInput{
-                attributes_to_get: vec![String::from("serviceid"), String::from("version")],
-                table_name: String::from("megaphone_states"),
-                ..Default::default()
-            };
-            let output = services.ddb.scan(&scan).expect("Could not scan service table");
-            for item in output.items {
-                let record = VersionRecord{
-                    change: 0,
-                    sender_id: item.sender_id,
-                    version: item.version,
-                };
-                versions.append(record);
-            }
-
-        }
-        // init the sqs client
         let list_queue_request = ListQueuesRequest{
             queue_name_prefix:Some(config.sqs_prefix),
         };
-        let queue_list = services.sqs.list_queues(&list_queue_request).expect("No sqs quees");
+        let queue_list = sqs.list_queues(&list_queue_request).expect("No sqs quees");
         println!("SQS Topics: {:?}", queue_list);
         if queue_list.len() == 0 {
             //TODO: Add a queue for this handler.
@@ -247,15 +259,15 @@ impl AwsService {
         //                                     protocol: "sqs",
         //                                     topic_arn: SNS_TOPIC_ARN});
         //
-        let topic_arn = GetTopicAttributesInput{topic_arn:SNS_TOPIC_ARN};
+        let topic_arn = GetTopicAttributesInput{topic_arn: config.sns_topic};
         /*
             get connection
         */
-        let topic = services.sns.get_topic_attributes(&topic_arn).expect("No such topic");
+        let topic = sns.get_topic_attributes(&topic_arn).expect("No such topic");
         // confirm a topic.
         println!("Topic {:?}", topic);
-
-        reply
+        */
+        services
     }
 }
 
@@ -264,7 +276,7 @@ impl AwsService {
 impl FromData for VersionInput {
     type Error = String;
 
-    fn from_data(req: &Request, data: Data) -> data::Outcome<Self, String> {
+    fn from_data(_req: &Request, data: Data) -> data::Outcome<Self, String> {
         let mut string = String::new();
         if let Err(e) = data.open().read_to_string(&mut string) {
             return Failure((Status::InternalServerError, format!("{:?}", e)));
@@ -285,6 +297,7 @@ struct MResponse {
     status: u8,
     error_code: u8,
     error: String,
+    body: String,
 }
 
 impl Default for MResponse {
@@ -292,7 +305,8 @@ impl Default for MResponse {
         MResponse {
             status: 200,
             error_code: 0,
-            error: String::from("")
+            error: String::from(""),
+            body: String::from(""),
         }
     }
 }
@@ -333,7 +347,14 @@ fn accept(broadcaster_id: String, collection_id: String, version: VersionInput) 
 fn dump() -> Json<MResponse> {
     /// Dump the nodes current version info table.
     // TODO: dump the local table of senderID -> version data.
-    Json(MResponse {..Default::default()})
+    let settings = Settings::new().expect("Could not get settings");
+    let database = Database::new(settings.database);
+    let snapshot = format!("{:?}", database.snapshot());
+    let response = MResponse {
+        body: snapshot,
+        ..Default::default()
+    };
+    Json(response)
 }
 
 // TODO: Database handler.
@@ -358,11 +379,10 @@ fn create_rocket() -> Rocket {
 
 fn main() {
     // local cache
-    let versions = VersionTable{
-        items: VecQueue::new(),
-        change_record: 0,
-    };
-    let aws_service = AwsService::new(AwsConfig(..Default.default()));
+
+    let config = Settings::new().expect("Could not get settings");
+    let aws_service = AwsService::new(config.aws);
+    let database = Database::new(config.database);
 
     create_rocket().launch();
 }
