@@ -200,7 +200,6 @@ impl Settings {
 
         // Read the default config file
         config.merge(File::with_name("config/default"))?;
-        let dict = config.clone().get_table("database")?;
         /*
         println!("RR: {:?}", match dict.get("port") {
             Some(v) => v.to_string(),
@@ -214,7 +213,8 @@ impl Settings {
         // And the local, optional config
         config.merge(File::with_name("config/local").required(false))?;
         // set defaults
-        let check = config.clone().try_into::<HashMap<String, String>>()?;
+
+        // Blech.
 
         let debug = match config.get_bool("debug") {
             Ok(v) => v,
