@@ -70,16 +70,17 @@ fn accept(
     // TODO: Validate auth cookie
     // TODO: Validate broadcaster & collection; create SenderID
     // ^H^H^H^HTODO: publish version change / update local table.
-    // metrics, logging? you actually do want logging because this server is so rarely used..
 
-    // TODO: improved error handling
+    // TODO: improved error handling, logging+sentry
 
     let new_version = Version {
         service_id: format!("{}/{}", broadcaster_id, collection_id),
         version: version.value,
     };
+    use rocket::response::status;
     let _ = replace_into(versionv1)
         .values(&new_version)
+        //.execute(&*conn).map_err(|_| status::BadRequest(None))?;
         .execute(&*conn)?;
 
     Ok(Json(MResponse {
@@ -103,7 +104,7 @@ fn dump(conn: db::Conn) -> Result<Json> {
 // TODO: PubSub handler.
 // TODO: HTTP Error Handlers  https://rocket.rs/guide/requests/#error-catchers
 
-pub fn create_rocket() -> Result<Rocket> {
+pub fn rocket() -> Result<Rocket> {
     let rocket = rocket::ignite();
     let pool = pool_from_config(rocket.config())?;
     Ok(rocket.manage(pool).mount("/", routes![accept, dump]))
@@ -119,7 +120,7 @@ mod test {
     use serde_json::{self, Value};
 
     use db::Pool;
-    use super::create_rocket;
+    use super::rocket;
 
     /// Return a Rocket Client for testing
     ///
@@ -128,7 +129,7 @@ mod test {
     fn rocket_client() -> Client {
         // hacky/easiest way to set into rocket's config
         env::set_var("ROCKET_DATABASE_POOL_MAX_SIZE", "1");
-        let rocket = create_rocket().expect("rocket creation failed");
+        let rocket = rocket().expect("rocket failed");
         {
             let pool = rocket.state::<Pool>().unwrap();
             let conn = &*pool.get().expect("Couldn't connect to database");

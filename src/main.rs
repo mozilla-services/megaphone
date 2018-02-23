@@ -19,8 +19,8 @@ mod db;
 mod error;
 mod http;
 
-use http::create_rocket;
+use http::rocket;
 
 fn main() {
-    create_rocket().expect("rocket creation failed").launch();
+    rocket().expect("rocket failed").launch();
 }
