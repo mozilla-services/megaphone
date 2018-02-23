@@ -19,8 +19,6 @@ extern crate rusoto_sqs;
 extern crate serde_json;
 extern crate serde;
 
-extern crate dotenv;
-
 mod db;
 mod http;
 

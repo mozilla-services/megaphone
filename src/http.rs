@@ -1,14 +1,17 @@
 use std::collections::HashMap;
 use std::io::Read;
 
-use rocket;
-use rocket::{Request, Data, Rocket};
+use diesel::{QueryDsl, RunQueryDsl, replace_into};
+use rocket::{self, Request, Data, Rocket};
 use rocket::data::{self, FromData};
 use rocket::http::{Status};
 use rocket::Outcome::*;
 use rocket_contrib::Json;
 
-use db;
+use db::{self, init_pool};
+use db::models::Version;
+use db::schema::versionv1::all_columns;
+use db::schema::versionv1::dsl::versionv1;
 
 // Version information from command line.
 struct VersionInput {
@@ -68,11 +71,7 @@ fn accept(broadcaster_id: String, collection_id: String, version: VersionInput, 
     // TODO: Validate broadcaster & collection; create SenderID
     // TODO: publish version change / update local table.
 
-    use diesel::replace_into;
-    use diesel::RunQueryDsl;
-    use db::schema::versionv1::dsl::versionv1;
-    use db::models::VersionV1;
-    let new_version = VersionV1 {
+    let new_version = Version {
         service_id: format!("{}/{}", broadcaster_id, collection_id),
         version: version.value
     };
@@ -87,19 +86,13 @@ fn accept(broadcaster_id: String, collection_id: String, version: VersionInput, 
 /* Dump the current table */
 #[get("/v1/rtu")]
 fn dump(conn: db::Conn) -> Json {
-    /// Dump the nodes current version info table.
-    use diesel::QueryDsl;
-    use diesel::RunQueryDsl;
-    use db::schema::versionv1::all_columns;
-    use db::schema::versionv1::dsl::*;
-
+    // Dump the nodes current version info table.
     let collections: HashMap<String, String> = versionv1
         .select(all_columns)
         .load(&*conn)
         .expect("Error loading Version records")
         .into_iter()
         .collect();
-
     Json(json!({
         "collections": collections
     }))
@@ -110,11 +103,10 @@ fn dump(conn: db::Conn) -> Json {
 // TODO: HTTP Error Handlers  https://rocket.rs/guide/requests/#error-catchers
 
 pub fn create_rocket(pool_max_size: u32) -> Rocket {
-    use db::init_pool;
-    let pool = init_pool(pool_max_size);
     let rocket = rocket::ignite();
-    let database_url = rocket.config().get_str("database_url").expect("No database_url defined").to_string();
-    eprintln!("db {}", database_url);
+    let database_url = rocket.config().get_str("database_url").expect("ROCKET_DATABASE_URL undefined").to_string();
+    //let pool_max_size = rocket.config().get_int("max_pool_size").unwrap_or(10) as u32;
+    let pool = init_pool(database_url, pool_max_size);
     rocket
         .manage(pool)
         .mount("/", routes![accept, dump])

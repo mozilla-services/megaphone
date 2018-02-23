@@ -6,7 +6,6 @@ authors = ["jrconlin <me+crypt@jrconlin.com>"]
 [dependencies]
 config = "0.8"
 diesel = { version = "1.0", features = ["mysql"] }
-dotenv = "0.9"
 failure = "0.1"
 hyper = "0.11.18"
 hyper-tls = "0.1.2"
