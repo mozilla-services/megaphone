@@ -78,7 +78,7 @@ fn accept(
         service_id: format!("{}/{}", broadcaster_id, collection_id),
         version: version.value,
     };
-    let results = replace_into(versionv1)
+    let _ = replace_into(versionv1)
         .values(&new_version)
         .execute(&*conn)?;
 

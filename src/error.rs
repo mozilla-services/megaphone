@@ -9,12 +9,8 @@ pub type Result<T> = result::Result<T, failure::Error>;
 #[derive(Debug, Fail)]
 enum MegaphoneError {
     #[fail(display = "{}: Invalid Version info (must be URL safe Base 64)", name)]
-    InvalidVersionDataError {
-        name: String,
-    },
+    InvalidVersionDataError { name: String },
 
     #[fail(display = "{}: Version information not included in body of update", name)]
-    MissingVersionDataError {
-        name: String,
-    },
+    MissingVersionDataError { name: String },
 }
