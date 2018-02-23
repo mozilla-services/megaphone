@@ -64,15 +64,11 @@ fn accept(
     conn: db::Conn,
 ) -> Json<MResponse> {
     /// Set a version for a broadcaster / collection
-
-    println!(
-        "broadcaster: {:?}\n\tcollection: {:?}\n\tversion:{:?}",
-        broadcaster_id, collection_id, version.value
-    );
-
     // TODO: Validate auth cookie
     // TODO: Validate broadcaster & collection; create SenderID
-    // TODO: publish version change / update local table.
+    // ^H^H^H^HTODO: publish version change / update local table.
+
+    // TODO: improved error handling
 
     let new_version = Version {
         service_id: format!("{}/{}", broadcaster_id, collection_id),
