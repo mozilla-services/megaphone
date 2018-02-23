@@ -13,6 +13,8 @@ use db::models::Version;
 use db::schema::versionv1::all_columns;
 use db::schema::versionv1::dsl::versionv1;
 
+use error::Result;
+
 // Version information from command line.
 struct VersionInput {
     value: String,
@@ -64,7 +66,7 @@ fn accept(
     collection_id: String,
     version: VersionInput,
     conn: db::Conn,
-) -> Json<MResponse> {
+) -> Result<Json<MResponse>> {
     // TODO: Validate auth cookie
     // TODO: Validate broadcaster & collection; create SenderID
     // ^H^H^H^HTODO: publish version change / update local table.
@@ -78,35 +80,33 @@ fn accept(
     };
     let results = replace_into(versionv1)
         .values(&new_version)
-        .execute(&*conn)
-        .expect("Error");
+        .execute(&*conn)?;
 
-    Json(MResponse {
+    Ok(Json(MResponse {
         ..Default::default()
-    })
+    }))
 }
 
 /// Dump the nodes current version table
 #[get("/v1/rtu")]
-fn dump(conn: db::Conn) -> Json {
-    // flatten iter of 2 item tuples (via HashMap's FromIterator<(K, V)>)
+fn dump(conn: db::Conn) -> Result<Json> {
+    // flatten into HashMap FromIterator<(K, V)>
     let collections: HashMap<String, String> = versionv1
-        .select(all_columns)
-        .load(&*conn)
-        .expect("Error loading Version records")
+        .select(all_columns)  // XXX:
+        .load(&*conn)?
         .into_iter()
         .collect();
-    Json(json!({ "collections": collections }))
+    Ok(Json(json!({ "collections": collections })))
 }
 
 // TODO: Database handler.
 // TODO: PubSub handler.
 // TODO: HTTP Error Handlers  https://rocket.rs/guide/requests/#error-catchers
 
-pub fn create_rocket() -> Rocket {
+pub fn create_rocket() -> Result<Rocket> {
     let rocket = rocket::ignite();
-    let pool = pool_from_config(rocket.config());
-    rocket.manage(pool).mount("/", routes![accept, dump])
+    let pool = pool_from_config(rocket.config())?;
+    Ok(rocket.manage(pool).mount("/", routes![accept, dump]))
 }
 
 #[cfg(test)]
@@ -126,15 +126,15 @@ mod test {
     /// The managed db pool is set to a maxiumum of one connection w/
     /// a transaction began that is never committed
     fn rocket_client() -> Client {
-        // easiest (yet hacky) way to force this into the rocket config
+        // hacky/easiest way to set into rocket's config
         env::set_var("ROCKET_DATABASE_POOL_MAX_SIZE", "1");
-        let rocket = create_rocket();
+        let rocket = create_rocket().expect("rocket creation failed");
         {
-            let pool = rocket.state::<Pool>().expect("Expected a managed Pool");
-            let conn = &*pool.get().expect("Expected a Connection from the Pool");
-            conn.begin_test_transaction().expect("");
+            let pool = rocket.state::<Pool>().unwrap();
+            let conn = &*pool.get().expect("Couldn't connect to database");
+            conn.begin_test_transaction().unwrap();
         }
-        Client::new(rocket).expect("valid rocket instance")
+        Client::new(rocket).expect("rocket launch failed")
     }
 
     #[test]
@@ -142,10 +142,10 @@ mod test {
         let client = rocket_client();
         let mut response = client.post("/v1/rtu/foo/bar").body("v1").dispatch();
         assert_eq!(response.status(), Status::Ok);
-        let body = response.body_string().unwrap();
-        assert!(response.content_type().map_or(false, |ct| ct.is_json()));
 
-        let result: Value = serde_json::from_str(&body).unwrap();
+        assert!(response.content_type().map_or(false, |ct| ct.is_json()));
+        let result: Value = serde_json::from_str(&response.body_string().unwrap()).unwrap();
+
         // XXX:
         //assert_eq!(result.get("status").unwrap(), "ok");
         assert_eq!(result.get("status").unwrap(), 200);
@@ -160,13 +160,14 @@ mod test {
         let _ = client.post("/v1/rtu/baz/quux").body("v0").dispatch();
         let mut response = client.get("/v1/rtu").dispatch();
         assert_eq!(response.status(), Status::Ok);
-        let body = response.body_string().unwrap();
-        assert!(response.content_type().map_or(false, |ct| ct.is_json()));
 
-        let result: Value = serde_json::from_str(&body).unwrap();
+        assert!(response.content_type().map_or(false, |ct| ct.is_json()));
+        let result: Value = serde_json::from_str(&response.body_string().unwrap()).unwrap();
+
         let collections = result.get("collections").unwrap();
         assert_eq!(collections.as_object().map_or(0, |o| o.len()), 2);
         assert_eq!(collections.get("foo/bar").unwrap(), "v1");
         assert_eq!(collections.get("baz/quux").unwrap(), "v0");
     }
+
 }

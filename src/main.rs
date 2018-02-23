@@ -20,6 +20,7 @@ extern crate serde_json;
 extern crate serde;
 
 mod db;
+mod error;
 mod http;
 
 use std::str;
@@ -35,22 +36,6 @@ use rusoto_core::{Region};
 use http::create_rocket;
 
 //TODO: divide into sane components.
-
-// ==== Error Handling ( see https://boats.gitlab.io/blog/post/2017-11-30-failure-0-1-1/)
-
-#[derive(Debug, Fail)]
-enum MegaphoneError {
-    #[fail(display = "{}: Invalid Version info (must be URL safe Base 64)", name)]
-    InvalidVersionDataError {
-        name: String,
-    },
-
-    #[fail(display = "{}: Version information not included in body of update", name)]
-    MissingVersionDataError {
-        name: String,
-    },
-
-}
 
 // ==== PubSub
 // TODO: create new topic if not present?
@@ -349,5 +334,5 @@ fn main() {
     let aws_service = AwsService::new(config.aws);
     let database = Database::new(config.database);
 
-    create_rocket().launch();
+    create_rocket().expect("rocket creation failed").launch();
 }
