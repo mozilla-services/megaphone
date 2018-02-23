@@ -8,7 +8,7 @@ use rocket::http::Status;
 use rocket::Outcome::*;
 use rocket_contrib::Json;
 
-use db::{self, init_pool};
+use db::{self, pool_from_config};
 use db::models::Version;
 use db::schema::versionv1::all_columns;
 use db::schema::versionv1::dsl::versionv1;
@@ -56,6 +56,8 @@ impl Default for MResponse {
 }
 
 // REST Functions
+
+/// Set a version for a broadcaster / collection
 #[post("/v1/rtu/<broadcaster_id>/<collection_id>", data = "<version>")]
 fn accept(
     broadcaster_id: String,
@@ -63,10 +65,10 @@ fn accept(
     version: VersionInput,
     conn: db::Conn,
 ) -> Json<MResponse> {
-    /// Set a version for a broadcaster / collection
     // TODO: Validate auth cookie
     // TODO: Validate broadcaster & collection; create SenderID
     // ^H^H^H^HTODO: publish version change / update local table.
+    // metrics, logging? you actually do want logging because this server is so rarely used..
 
     // TODO: improved error handling
 
@@ -84,10 +86,10 @@ fn accept(
     })
 }
 
-/* Dump the current table */
+/// Dump the nodes current version table
 #[get("/v1/rtu")]
 fn dump(conn: db::Conn) -> Json {
-    // Dump the nodes current version info table.
+    // flatten iter of 2 item tuples (via HashMap's FromIterator<(K, V)>)
     let collections: HashMap<String, String> = versionv1
         .select(all_columns)
         .load(&*conn)
@@ -101,20 +103,16 @@ fn dump(conn: db::Conn) -> Json {
 // TODO: PubSub handler.
 // TODO: HTTP Error Handlers  https://rocket.rs/guide/requests/#error-catchers
 
-pub fn create_rocket(pool_max_size: u32) -> Rocket {
+pub fn create_rocket() -> Rocket {
     let rocket = rocket::ignite();
-    let database_url = rocket
-        .config()
-        .get_str("database_url")
-        .expect("ROCKET_DATABASE_URL undefined")
-        .to_string();
-    //let pool_max_size = rocket.config().get_int("max_pool_size").unwrap_or(10) as u32;
-    let pool = init_pool(database_url, pool_max_size);
+    let pool = pool_from_config(rocket.config());
     rocket.manage(pool).mount("/", routes![accept, dump])
 }
 
 #[cfg(test)]
 mod test {
+    use std::env;
+
     use diesel::Connection;
     use rocket::local::Client;
     use rocket::http::Status;
@@ -128,13 +126,31 @@ mod test {
     /// The managed db pool is set to a maxiumum of one connection w/
     /// a transaction began that is never committed
     fn rocket_client() -> Client {
-        let rocket = create_rocket(1);
+        // easiest (yet hacky) way to force this into the rocket config
+        env::set_var("ROCKET_DATABASE_POOL_MAX_SIZE", "1");
+        let rocket = create_rocket();
         {
             let pool = rocket.state::<Pool>().expect("Expected a managed Pool");
             let conn = &*pool.get().expect("Expected a Connection from the Pool");
             conn.begin_test_transaction().expect("");
         }
         Client::new(rocket).expect("valid rocket instance")
+    }
+
+    #[test]
+    fn test_post() {
+        let client = rocket_client();
+        let mut response = client.post("/v1/rtu/foo/bar").body("v1").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let body = response.body_string().unwrap();
+        assert!(response.content_type().map_or(false, |ct| ct.is_json()));
+
+        let result: Value = serde_json::from_str(&body).unwrap();
+        // XXX:
+        //assert_eq!(result.get("status").unwrap(), "ok");
+        assert_eq!(result.get("status").unwrap(), 200);
+        // XXX:
+        //assert_eq!(result.get("error"), None);
     }
 
     #[test]
@@ -148,26 +164,9 @@ mod test {
         assert!(response.content_type().map_or(false, |ct| ct.is_json()));
 
         let result: Value = serde_json::from_str(&body).unwrap();
-        let collections = result.as_object().unwrap().get("collections").unwrap();
+        let collections = result.get("collections").unwrap();
         assert_eq!(collections.as_object().map_or(0, |o| o.len()), 2);
         assert_eq!(collections.get("foo/bar").unwrap(), "v1");
         assert_eq!(collections.get("baz/quux").unwrap(), "v0");
-    }
-
-    #[test]
-    fn test_post() {
-        let client = rocket_client();
-        let mut response = client.post("/v1/rtu/foo/bar").body("v1").dispatch();
-        assert_eq!(response.status(), Status::Ok);
-        let body = response.body_string().unwrap();
-        assert!(response.content_type().map_or(false, |ct| ct.is_json()));
-
-        let result: Value = serde_json::from_str(&body).unwrap();
-        assert!(result.is_object());
-        // XXX:
-        //assert_eq!(result.get("status").unwrap(), "ok");
-        assert_eq!(result.get("status").unwrap(), 200);
-        // XXX:
-        //assert_eq!(result.get("error"), None);
     }
 }

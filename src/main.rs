@@ -349,5 +349,5 @@ fn main() {
     let aws_service = AwsService::new(config.aws);
     let database = Database::new(config.database);
 
-    create_rocket(10).launch();
+    create_rocket().launch();
 }
