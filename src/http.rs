@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::io::Read;
 
-use diesel::{QueryDsl, RunQueryDsl, replace_into};
-use rocket::{self, Request, Data, Rocket};
+use diesel::{replace_into, QueryDsl, RunQueryDsl};
+use rocket::{self, Data, Request, Rocket};
 use rocket::data::{self, FromData};
-use rocket::http::{Status};
+use rocket::http::Status;
 use rocket::Outcome::*;
 use rocket_contrib::Json;
 
@@ -31,9 +31,7 @@ impl FromData for VersionInput {
 
         // TODO Validate the version info
 
-        Success(VersionInput {
-            value: string
-        })
+        Success(VersionInput { value: string })
     }
 }
 
@@ -57,13 +55,18 @@ impl Default for MResponse {
     }
 }
 
-
 // REST Functions
 #[post("/v1/rtu/<broadcaster_id>/<collection_id>", data = "<version>")]
-fn accept(broadcaster_id: String, collection_id: String, version: VersionInput, conn: db::Conn) -> Json<MResponse>{
+fn accept(
+    broadcaster_id: String,
+    collection_id: String,
+    version: VersionInput,
+    conn: db::Conn,
+) -> Json<MResponse> {
     /// Set a version for a broadcaster / collection
 
-    println!("broadcaster: {:?}\n\tcollection: {:?}\n\tversion:{:?}",
+    println!(
+        "broadcaster: {:?}\n\tcollection: {:?}\n\tversion:{:?}",
         broadcaster_id, collection_id, version.value
     );
 
@@ -73,14 +76,16 @@ fn accept(broadcaster_id: String, collection_id: String, version: VersionInput, 
 
     let new_version = Version {
         service_id: format!("{}/{}", broadcaster_id, collection_id),
-        version: version.value
+        version: version.value,
     };
     let results = replace_into(versionv1)
         .values(&new_version)
         .execute(&*conn)
         .expect("Error");
 
-    Json(MResponse {..Default::default()})
+    Json(MResponse {
+        ..Default::default()
+    })
 }
 
 /* Dump the current table */
@@ -93,9 +98,7 @@ fn dump(conn: db::Conn) -> Json {
         .expect("Error loading Version records")
         .into_iter()
         .collect();
-    Json(json!({
-        "collections": collections
-    }))
+    Json(json!({ "collections": collections }))
 }
 
 // TODO: Database handler.
@@ -104,12 +107,14 @@ fn dump(conn: db::Conn) -> Json {
 
 pub fn create_rocket(pool_max_size: u32) -> Rocket {
     let rocket = rocket::ignite();
-    let database_url = rocket.config().get_str("database_url").expect("ROCKET_DATABASE_URL undefined").to_string();
+    let database_url = rocket
+        .config()
+        .get_str("database_url")
+        .expect("ROCKET_DATABASE_URL undefined")
+        .to_string();
     //let pool_max_size = rocket.config().get_int("max_pool_size").unwrap_or(10) as u32;
     let pool = init_pool(database_url, pool_max_size);
-    rocket
-        .manage(pool)
-        .mount("/", routes![accept, dump])
+    rocket.manage(pool).mount("/", routes![accept, dump])
 }
 
 #[cfg(test)]
@@ -139,14 +144,8 @@ mod test {
     #[test]
     fn test_post_get() {
         let client = rocket_client();
-        let _ = client
-            .post("/v1/rtu/foo/bar")
-            .body("v1")
-            .dispatch();
-        let _ = client
-            .post("/v1/rtu/baz/quux")
-            .body("v0")
-            .dispatch();
+        let _ = client.post("/v1/rtu/foo/bar").body("v1").dispatch();
+        let _ = client.post("/v1/rtu/baz/quux").body("v0").dispatch();
         let mut response = client.get("/v1/rtu").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let body = response.body_string().unwrap();
@@ -162,10 +161,7 @@ mod test {
     #[test]
     fn test_post() {
         let client = rocket_client();
-        let mut response = client
-            .post("/v1/rtu/foo/bar")
-            .body("v1")
-            .dispatch();
+        let mut response = client.post("/v1/rtu/foo/bar").body("v1").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let body = response.body_string().unwrap();
         assert!(response.content_type().map_or(false, |ct| ct.is_json()));
