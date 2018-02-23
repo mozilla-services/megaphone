@@ -6,7 +6,7 @@ extern crate config;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate rocket;
-extern crate rocket_contrib;
+#[macro_use] extern crate rocket_contrib;
 #[macro_use]
 extern crate diesel;
 #[macro_use] extern crate mysql;

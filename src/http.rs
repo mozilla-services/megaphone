@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::Read;
 
 use rocket;
@@ -7,8 +8,6 @@ use rocket::http::{Status};
 use rocket::Outcome::*;
 use rocket_contrib::Json;
 
-use super::Settings;
-use super::Database;
 use db;
 
 // Version information from command line.
@@ -87,31 +86,23 @@ fn accept(broadcaster_id: String, collection_id: String, version: VersionInput, 
 
 /* Dump the current table */
 #[get("/v1/rtu")]
-fn dump(conn: db::Conn) -> Json<MResponse> {
+fn dump(conn: db::Conn) -> Json {
     /// Dump the nodes current version info table.
-    // TODO: dump the local table of senderID -> version data.
-    let settings = Settings::new().expect("Could not get settings");
-    let database = Database::new(settings.database);
-    let snapshot = format!("{:?}", database.snapshot());
-
-    //use diesel::query_dsl::SelectDsl;
     use diesel::QueryDsl;
     use diesel::RunQueryDsl;
-    use db::models::*;
     use db::schema::versionv1::all_columns;
     use db::schema::versionv1::dsl::*;
 
-    let results = versionv1.select(all_columns)
-        .load::<VersionV1>(&*conn)
-        .expect("Error loading Version records");
-    eprintln!("results: {:?}", results);
+    let collections: HashMap<String, String> = versionv1
+        .select(all_columns)
+        .load(&*conn)
+        .expect("Error loading Version records")
+        .into_iter()
+        .collect();
 
-
-    let response = MResponse {
-        body: snapshot,
-        ..Default::default()
-    };
-    Json(response)
+    Json(json!({
+        "collections": collections
+    }))
 }
 
 // TODO: Database handler.
@@ -121,62 +112,78 @@ fn dump(conn: db::Conn) -> Json<MResponse> {
 pub fn create_rocket(pool_max_size: u32) -> Rocket {
     use db::init_pool;
     let pool = init_pool(pool_max_size);
-    rocket::ignite()
+    let rocket = rocket::ignite();
+    let database_url = rocket.config().get_str("database_url").expect("No database_url defined").to_string();
+    eprintln!("db {}", database_url);
+    rocket
         .manage(pool)
         .mount("/", routes![accept, dump])
 }
 
-
 #[cfg(test)]
 mod test {
-    use super::create_rocket;
+    use diesel::Connection;
     use rocket::local::Client;
     use rocket::http::Status;
-    use serde_json;
+    use serde_json::{self, Value};
 
+    use db::Pool;
+    use super::create_rocket;
 
+    /// Return a Rocket Client for testing
+    ///
+    /// The managed db pool is set to a maxiumum of one connection w/
+    /// a transaction began that is never committed
     fn rocket_client() -> Client {
-        use diesel::Connection;
-        use db::Pool;
         let rocket = create_rocket(1);
         {
             let pool = rocket.state::<Pool>().expect("Expected a managed Pool");
-            let conn = pool.get().expect("Expected a Connection from the Pool");
-            (*conn).begin_test_transaction().expect("");
+            let conn = &*pool.get().expect("Expected a Connection from the Pool");
+            conn.begin_test_transaction().expect("");
         }
         Client::new(rocket).expect("valid rocket instance")
     }
 
     #[test]
-    fn hello_world() {
-        //let rocket = create_rocket();
-        //let client = Client::new(create_rocket()).expect("valid rocket instance");
+    fn test_post_get() {
         let client = rocket_client();
-
-        let mut response = client
+        let _ = client
             .post("/v1/rtu/foo/bar")
             .body("v1")
             .dispatch();
-
+        let _ = client
+            .post("/v1/rtu/baz/quux")
+            .body("v0")
+            .dispatch();
         let mut response = client.get("/v1/rtu").dispatch();
         assert_eq!(response.status(), Status::Ok);
-        let body_string = response.body_string().expect("Expected a body");
-        eprintln!("got: {}",  body_string);
-        //let body = serde_json::from_str(body_string.as_str());
-        //assert_eq!(, Some("Hello, world!".into()));
+        let body = response.body_string().unwrap();
+        assert!(response.content_type().map_or(false, |ct| ct.is_json()));
+
+        let result: Value = serde_json::from_str(&body).unwrap();
+        let collections = result.as_object().unwrap().get("collections").unwrap();
+        assert_eq!(collections.as_object().map_or(0, |o| o.len()), 2);
+        assert_eq!(collections.get("foo/bar").unwrap(), "v1");
+        assert_eq!(collections.get("baz/quux").unwrap(), "v0");
     }
 
     #[test]
-    fn hello_world2() {
-        //let client = Client::new(create_rocket()).expect("valid rocket instance");
+    fn test_post() {
         let client = rocket_client();
         let mut response = client
             .post("/v1/rtu/foo/bar")
             .body("v1")
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
-        let body_string = response.body_string().expect("Expected a body");
-        //let body = serde_json::from_str(body_string.as_str());
-        //assert_eq!(, Some("Hello, world!".into()));
+        let body = response.body_string().unwrap();
+        assert!(response.content_type().map_or(false, |ct| ct.is_json()));
+
+        let result: Value = serde_json::from_str(&body).unwrap();
+        assert!(result.is_object());
+        // XXX:
+        //assert_eq!(result.get("status").unwrap(), "ok");
+        assert_eq!(result.get("status").unwrap(), 200);
+        // XXX:
+        //assert_eq!(result.get("error"), None);
     }
 }
