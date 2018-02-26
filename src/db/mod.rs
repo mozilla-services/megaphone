@@ -40,7 +40,7 @@ impl Deref for Conn {
 impl<'a, 'r> FromRequest<'a, 'r> for Conn {
     type Error = ();
 
-    fn from_request(request: &'a Request<'r>) -> request::Outcome<Conn, ()> {
+    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, ()> {
         let pool = request.guard::<State<Pool>>()?;
         match pool.get() {
             Ok(conn) => Outcome::Success(Conn(conn)),

@@ -15,5 +15,5 @@ See [API doc](https://docs.google.com/document/d/1Wxqf1a4HDkKgHDIswPmhmdvk8KPoME
    "mysql")
 
 Run:
-
-  * $ diesel setup
+  * export ROCKET_DATABASE_URL=mysql://scott:tiger@mydatabase/megaphone
+  * $ diesel setup --database-url $ROCKET_DATABASE_URL
