@@ -1,0 +1,20 @@
+language: rust
+sudo: false
+cache: cargo
+
+rust:
+  - nightly
+env:
+  global:
+    - RUST_TEST_THREADS=1
+    - ROCKET_DATABASE_URL="mysql://travis@127.0.0.1/megaphone"
+
+services:
+  - mysql
+
+# XXX: I think diesel has a create/run migrations call the app can
+# call vs calling out to diesel_cli?
+before_script:
+  - mysql -e 'CREATE DATABASE IF NOT EXISTS megaphone;'
+  - cargo install diesel_cli --no-default-features --features mysql
+  - diesel setup --database-url $ROCKET_DATABASE_URL
