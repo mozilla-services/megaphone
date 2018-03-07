@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::io::Read;
 
 use diesel::{replace_into, QueryDsl, RunQueryDsl};
+use diesel::mysql::MysqlConnection;
 use failure::ResultExt;
 use rocket::{self, Data, Request, Rocket};
 use rocket::data::{self, FromData};
@@ -24,7 +25,7 @@ pub struct Broadcaster {
 impl Broadcaster {
     pub fn broadcast_new_version(
         &self,
-        conn: db::Conn,
+        conn: &MysqlConnection,
         collection_id: String,
         version: String,
     ) -> HandlerResult<usize> {
@@ -34,7 +35,7 @@ impl Broadcaster {
         };
         Ok(replace_into(versionv1::table)
             .values(&new_version)
-            .execute(&*conn)
+            .execute(conn)
             .context(HandlerErrorKind::DBError)?)
     }
 }
@@ -101,8 +102,7 @@ fn accept(
     broadcaster: HandlerResult<Broadcaster>,
     conn: db::Conn,
 ) -> HandlerResult<Json> {
-    broadcaster?
-        .broadcast_new_version(conn, collection_id, version?.value)?;
+    broadcaster?.broadcast_new_version(&conn, collection_id, version?.value)?;
     Ok(Json(json!({
         "status": 200,
     })))
@@ -146,7 +146,7 @@ mod test {
     use rocket::response::Response;
     use serde_json::{self, Value};
 
-    use db::Pool;
+    use db::MysqlPool;
     use super::rocket;
 
     /// Return a Rocket Client for testing
@@ -158,7 +158,7 @@ mod test {
         env::set_var("ROCKET_DATABASE_POOL_MAX_SIZE", "1");
         let rocket = rocket().expect("rocket failed");
         {
-            let pool = rocket.state::<Pool>().unwrap();
+            let pool = rocket.state::<MysqlPool>().unwrap();
             let conn = &*pool.get().expect("Couldn't connect to database");
             conn.begin_test_transaction().unwrap();
         }
