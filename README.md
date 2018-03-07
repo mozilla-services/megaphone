@@ -11,8 +11,8 @@ See [API doc](https://docs.google.com/document/d/1Wxqf1a4HDkKgHDIswPmhmdvk8KPoME
  * mysql
  * libmysqlclient installed (brew install mysql on macOS, apt-get install
    libmysqlclient-dev on Ubuntu)
- * diesel cli: (cargo install diesel_cli --no-default-features --features
-   "mysql")
+ * diesel cli: (cargo install diesel_cli --no-default-features
+   --features mysql)
 
 Run:
   * export ROCKET_DATABASE_URL=mysql://scott:tiger@mydatabase/megaphone

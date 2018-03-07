@@ -1,3 +1,4 @@
+use std::convert::Into;
 use std::collections::HashMap;
 use std::io::Read;
 
@@ -28,7 +29,8 @@ impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
             // These should be guaranteed on the path when we're called
             let broadcaster_id = request
                 .get_param::<String>(0)
-                .map_err(|_| HandlerErrorKind::Unauthorized("Unexpected error".to_string()).into())
+                .map_err(HandlerErrorKind::RocketError)
+                .map_err(Into::into)
                 .into_outcome(VALIDATION_FAILED)?;
             // TODO: Validate auth cookie
             Success(Broadcaster { id: broadcaster_id })
@@ -56,8 +58,8 @@ impl FromData for VersionInput {
         let mut string = String::new();
         data.open()
             .read_to_string(&mut string)
-            // XXX: lost the cause, might be nice for logging
-            .map_err(|_| HandlerErrorKind::MissingVersionDataError.into())
+            .context(HandlerErrorKind::MissingVersionDataError)
+            .map_err(Into::into)
             .into_outcome(VALIDATION_FAILED)?;
         if string.is_empty() {
             return Failure((
@@ -70,28 +72,6 @@ impl FromData for VersionInput {
     }
 }
 
-/*
-// Generic Response
-#[derive(Serialize)]
-struct MResponse {
-    status: u8,
-    error_code: u8,
-    error: String,
-    body: String,
-}
-
-impl Default for MResponse {
-    fn default() -> MResponse {
-        MResponse {
-            status: 200,
-            error_code: 0,
-            error: String::from(""),
-            body: String::from(""),
-        }
-    }
-}
-*/
-
 // REST Functions
 
 /// Set a version for a broadcaster / collection
@@ -103,19 +83,11 @@ fn accept(
     broadcaster: HandlerResult<Broadcaster>,
     conn: db::Conn,
 ) -> HandlerResult<Json> {
-    // TODO: improved error handling, logging+sentry
-
     let new_version = Version::new(broadcaster?, collection_id, version?.value);
     let _ = replace_into(versionv1::table)
         .values(&new_version)
         .execute(&*conn)
         .context(HandlerErrorKind::DBError)?;
-
-    /*
-    Ok(Json(MResponse {
-        ..Default::default()
-    }))
-     */
     Ok(Json(json!({
         "status": 200,
     })))
@@ -126,18 +98,18 @@ fn accept(
 //fn dump(bcast_admin: BroadcastAdmin, conn: db::Conn) -> HandlerResult<Json> {
 fn dump(conn: db::Conn) -> HandlerResult<Json> {
     // flatten into HashMap FromIterator<(K, V)>
-    let collections: HashMap<String, String> = versionv1::table
+    let broadcasts: HashMap<String, String> = versionv1::table
         .select((versionv1::service_id, versionv1::version))
         .load(&*conn)
         .context(HandlerErrorKind::DBError)?
         .into_iter()
         .collect();
-    Ok(Json(json!({ "collections": collections })))
+    Ok(Json(json!({ "broadcasts": broadcasts })))
 }
 
 #[error(404)]
 fn not_found() -> HandlerResult<Json> {
-    Err(HandlerErrorKind::NotFound.into())
+    Err(HandlerErrorKind::NotFound)?
 }
 
 pub fn rocket() -> Result<Rocket> {
@@ -210,8 +182,6 @@ mod test {
             .dispatch();
         assert_eq!(response.status(), Status::BadRequest);
         let result = json_body(&mut response);
-        // XXX:
-        //assert_eq!(result.get("status").unwrap(), "ok");
         assert_eq!(result.get("status").unwrap(), Status::BadRequest.code);
         assert!(
             result
@@ -262,10 +232,10 @@ mod test {
         let mut response = client.get("/v1/broadcasts").header(auth()).dispatch();
         assert_eq!(response.status(), Status::Ok);
         let result = json_body(&mut response);
-        let collections = result.get("collections").unwrap();
-        assert_eq!(collections.as_object().map_or(0, |o| o.len()), 2);
-        assert_eq!(collections.get("foo/bar").unwrap(), "v1");
-        assert_eq!(collections.get("baz/quux").unwrap(), "v0");
+        let broadcasts = result.get("broadcasts").unwrap();
+        assert_eq!(broadcasts.as_object().map_or(0, |o| o.len()), 2);
+        assert_eq!(broadcasts.get("foo/bar").unwrap(), "v1");
+        assert_eq!(broadcasts.get("baz/quux").unwrap(), "v0");
     }
 
 }

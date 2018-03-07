@@ -1,10 +1,16 @@
-/// ==== Error Handling ( see
-/// https://boats.gitlab.io/blog/post/2017-11-30-failure-0-1-1/)
+/// Error handling based on the failure crate
+///
+/// Only rocket's Handlers can render error responses w/ a contextual JSON
+/// payload. So request guards should generally return VALIDATION_FAILED,
+/// leaving error handling to the Handler (which in turn must take a Result of
+/// request guards' fields).
+///
+/// HandlerErrors are rocket Responders (render their own error responses).
 use std::fmt;
 use std::result;
 
 use failure::{Backtrace, Context, Error, Fail};
-use rocket::{response, Request};
+use rocket::{self, response, Request};
 use rocket::http::Status;
 use rocket::response::{Responder, Response};
 use rocket_contrib::Json;
@@ -13,9 +19,8 @@ pub type Result<T> = result::Result<T, Error>;
 
 pub type HandlerResult<T> = result::Result<T, HandlerError>;
 
-// Only Handlers can render error responses w/ a contextual JSON payload. So
-// request guards should generally return VALIDATION_FAILED, leaving error
-// handling to the Handler (which in turn must take a Result of the field)
+/// Signal a request guard failure, propagated up to the Handler to render an
+/// error response
 pub const VALIDATION_FAILED: Status = Status::InternalServerError;
 
 #[derive(Debug)]
@@ -25,17 +30,20 @@ pub struct HandlerError {
 
 #[derive(Clone, Eq, PartialEq, Debug, Fail)]
 pub enum HandlerErrorKind {
-    /// A 404 Not Found
+    /// 401 Unauthorized
+    #[fail(display = "Unauthorized: {}", _0)]
+    Unauthorized(String),
+    /// 404 Not Found
     #[fail(display = "Not Found")]
     NotFound,
     #[fail(display = "A database error occurred")]
     DBError,
-    #[fail(display = "Unauthorized: {}", _0)]
-    Unauthorized(String),
     #[fail(display = "Version information not included in body of update")]
     MissingVersionDataError,
     #[fail(display = "Invalid Version info (must be URL safe Base 64)")]
     InvalidVersionDataError,
+    #[fail(display = "Unexpected rocket error: {:?}", _0)]
+    RocketError(rocket::Error), // rocket::Error isn't a std Error (so no #[cause])
 }
 
 impl HandlerErrorKind {
