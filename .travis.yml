@@ -17,5 +17,7 @@ services:
 # calling out to diesel_cli?
 before_script:
   - mysql -e 'CREATE DATABASE IF NOT EXISTS megaphone;'
-  - cargo install diesel_cli --no-default-features --features mysql
+  - |
+    cargo install diesel_cli --no-default-features --features mysql || \
+    echo "diesel_cli already installed"
   - diesel setup --database-url $ROCKET_DATABASE_URL

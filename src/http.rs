@@ -21,6 +21,24 @@ pub struct Broadcaster {
     pub id: String,
 }
 
+impl Broadcaster {
+    pub fn broadcast_new_version(
+        &self,
+        conn: db::Conn,
+        collection_id: String,
+        version: String,
+    ) -> HandlerResult<usize> {
+        let new_version = Version {
+            service_id: format!("{}/{}", self.id, collection_id),
+            version: version,
+        };
+        Ok(replace_into(versionv1::table)
+            .values(&new_version)
+            .execute(&*conn)
+            .context(HandlerErrorKind::DBError)?)
+    }
+}
+
 impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
     type Error = HandlerError;
 
@@ -46,7 +64,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
 /// An authorized reader of current broadcasts
 //struct BroadcastAdmin;
 
-// Version information from command line.
+/// Version information from command line.
 struct VersionInput {
     value: String,
 }
@@ -83,17 +101,14 @@ fn accept(
     broadcaster: HandlerResult<Broadcaster>,
     conn: db::Conn,
 ) -> HandlerResult<Json> {
-    let new_version = Version::new(broadcaster?, collection_id, version?.value);
-    let _ = replace_into(versionv1::table)
-        .values(&new_version)
-        .execute(&*conn)
-        .context(HandlerErrorKind::DBError)?;
+    broadcaster?
+        .broadcast_new_version(conn, collection_id, version?.value)?;
     Ok(Json(json!({
         "status": 200,
     })))
 }
 
-/// Dump the nodes current version table
+/// Dump the current version table
 #[get("/v1/broadcasts")]
 //fn dump(bcast_admin: BroadcastAdmin, conn: db::Conn) -> HandlerResult<Json> {
 fn dump(conn: db::Conn) -> HandlerResult<Json> {
