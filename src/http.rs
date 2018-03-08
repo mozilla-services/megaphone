@@ -2,8 +2,7 @@ use std::convert::Into;
 use std::collections::HashMap;
 use std::io::Read;
 
-use diesel::{replace_into, QueryDsl, RunQueryDsl};
-use diesel::mysql::MysqlConnection;
+use diesel::{QueryDsl, RunQueryDsl};
 use failure::ResultExt;
 use rocket::{self, Data, Request, Rocket};
 use rocket::data::{self, FromData};
@@ -13,32 +12,9 @@ use rocket::request::{self, FromRequest};
 use rocket_contrib::Json;
 
 use db::{self, pool_from_config};
-use db::models::Version;
+use db::models::Broadcaster;
 use db::schema::versionv1;
 use error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
-
-/// An authorized broadcaster
-pub struct Broadcaster {
-    pub id: String,
-}
-
-impl Broadcaster {
-    pub fn broadcast_new_version(
-        &self,
-        conn: &MysqlConnection,
-        collection_id: String,
-        version: String,
-    ) -> HandlerResult<usize> {
-        let new_version = Version {
-            service_id: format!("{}/{}", self.id, collection_id),
-            version: version,
-        };
-        Ok(replace_into(versionv1::table)
-            .values(&new_version)
-            .execute(conn)
-            .context(HandlerErrorKind::DBError)?)
-    }
-}
 
 impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
     type Error = HandlerError;
@@ -61,9 +37,6 @@ impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
         }
     }
 }
-
-/// An authorized reader of current broadcasts
-//struct BroadcastAdmin;
 
 /// Version information from command line.
 struct VersionInput {
@@ -95,7 +68,7 @@ impl FromData for VersionInput {
 
 /// Set a version for a broadcaster / collection
 #[post("/v1/broadcasts/<_broadcaster_id>/<collection_id>", data = "<version>")]
-fn accept(
+fn broadcast(
     _broadcaster_id: String,
     collection_id: String,
     version: HandlerResult<VersionInput>,
@@ -110,8 +83,8 @@ fn accept(
 
 /// Dump the current version table
 #[get("/v1/broadcasts")]
-//fn dump(bcast_admin: BroadcastAdmin, conn: db::Conn) -> HandlerResult<Json> {
-fn dump(conn: db::Conn) -> HandlerResult<Json> {
+//fn get_broadcasts(bcast_admin: BroadcastAdmin, conn: db::Conn) -> HandlerResult<Json> {
+fn get_broadcasts(conn: db::Conn) -> HandlerResult<Json> {
     // flatten into HashMap FromIterator<(K, V)>
     let broadcasts: HashMap<String, String> = versionv1::table
         .select((versionv1::service_id, versionv1::version))
@@ -132,7 +105,7 @@ pub fn rocket() -> Result<Rocket> {
     let pool = pool_from_config(rocket.config())?;
     Ok(rocket
         .manage(pool)
-        .mount("/", routes![accept, dump])
+        .mount("/", routes![broadcast, get_broadcasts])
         .catch(errors![not_found]))
 }
 
