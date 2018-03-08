@@ -77,7 +77,7 @@ fn broadcast(
 ) -> HandlerResult<Json> {
     broadcaster?.broadcast_new_version(&conn, collection_id, version?.value)?;
     Ok(Json(json!({
-        "status": 200,
+        "status": 200
     })))
 }
 
@@ -92,7 +92,10 @@ fn get_broadcasts(conn: db::Conn) -> HandlerResult<Json> {
         .context(HandlerErrorKind::DBError)?
         .into_iter()
         .collect();
-    Ok(Json(json!({ "broadcasts": broadcasts })))
+    Ok(Json(json!({
+        "status": 200,
+        "broadcasts": broadcasts
+    })))
 }
 
 #[error(404)]
@@ -156,9 +159,7 @@ mod test {
             .body("v1")
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
-        let result = json_body(&mut response);
-        assert_eq!(result.get("status").unwrap(), 200);
-        assert_eq!(result.get("error"), None);
+        assert_eq!(json_body(&mut response), json!({"status": 200}));
     }
 
     #[test]
@@ -190,9 +191,10 @@ mod test {
             .body("v1")
             .dispatch();
         assert_eq!(response.status(), Status::NotFound);
-        let result = json_body(&mut response);
-        assert_eq!(result.get("status").unwrap(), 404);
-        assert_eq!(result.get("error").unwrap().as_str().unwrap(), "Not Found");
+        assert_eq!(
+            json_body(&mut response),
+            json!({"status": 404, "error": "Not Found"})
+        );
     }
 
     #[test]
@@ -219,11 +221,10 @@ mod test {
             .dispatch();
         let mut response = client.get("/v1/broadcasts").header(auth()).dispatch();
         assert_eq!(response.status(), Status::Ok);
-        let result = json_body(&mut response);
-        let broadcasts = result.get("broadcasts").unwrap();
-        assert_eq!(broadcasts.as_object().map_or(0, |o| o.len()), 2);
-        assert_eq!(broadcasts.get("foo/bar").unwrap(), "v1");
-        assert_eq!(broadcasts.get("baz/quux").unwrap(), "v0");
+        assert_eq!(
+            json_body(&mut response),
+            json!({"status": 200, "broadcasts": {"baz/quux": "v0", "foo/bar": "v1"}})
+        );
     }
 
 }
