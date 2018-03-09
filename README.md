@@ -8,6 +8,8 @@ See [API doc](https://docs.google.com/document/d/1Wxqf1a4HDkKgHDIswPmhmdvk8KPoME
 
  * rust nightly. See [rocket.rs Getting
    Started](https://rocket.rs/guide/getting-started/) for additional steps.
+   To set nightly as the default for only megaphone, from the
+   megaphone directory run: rustup override set nightly
  * mysql
  * libmysqlclient installed (brew install mysql on macOS, apt-get install
    libmysqlclient-dev on Ubuntu)
