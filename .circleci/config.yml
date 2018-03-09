@@ -1,0 +1,52 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      # XXX: should peg this since we're relying on nightly
+      - image: ekidd/rust-musl-builder
+
+    steps:
+      - checkout
+      - setup_remote_docker
+      - restore_cache:
+          key: project-cache
+      - run:
+          name: Install dependencies
+          command: |
+            sudo apt-get update -qq
+            sudo apt-get install -qq -y libmysqlclient-dev
+      - run:
+          name: Install Docker client
+          # XXX: docker ver pegged here, sigh
+          command: |
+            set -x
+            VER="17.12.1-ce"
+            curl -L -o /tmp/docker-$VER.tgz \
+                https://download.docker.com/linux/static/stable/x86_64/docker-$VER.tgz
+            tar -xz -C /tmp -f /tmp/docker-$VER.tgz
+            sudo mv /tmp/docker/* /usr/bin
+      - run:
+          name: Cargo build release
+          command: |
+            rustup default nightly
+            rustup target add x86_64-unknown-linux-musl
+            rustc --version --verbose
+            cargo --version --verbose
+            cargo build --target x86_64-unknown-linux-musl --release
+      - run:
+          name: Build Docker image
+          command: |
+            docker build -t app .
+      - deploy:
+          name: Push Docker image
+          command: |
+            DOCKER_TAG="${CIRCLE_TAG:-latest}"
+            docker tag app "${CIRCLE_PROJECT_REPONAME}:${DOCKER_TAG}"
+            docker images
+            #docker push "${CIRCLE_PROJECT_REPONAME}:${DOCKER_TAG}"
+      - save_cache:
+          key: project-cache
+          paths:
+            - "~/.cargo"
+            - "./target"
