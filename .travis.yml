@@ -13,8 +13,8 @@ env:
 services:
   - mysql
 
-# XXX: I think diesel has a create/run migrations call the app can call vs
-# calling out to diesel_cli?
+# XXX: kill the diesel_cli requirement:
+# https://docs.rs/diesel/0.16.0/diesel/macro.embed_migrations.html
 before_script:
   - mysql -e 'CREATE DATABASE IF NOT EXISTS megaphone;'
   - |

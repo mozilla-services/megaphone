@@ -12,8 +12,8 @@ use rocket::request::{self, FromRequest};
 use rocket_contrib::Json;
 
 use db::{self, pool_from_config};
-use db::models::Broadcaster;
-use db::schema::versionv1;
+use db::models::{Broadcast, Broadcaster};
+use db::schema::broadcastsv1;
 use error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
 
 impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
@@ -66,16 +66,16 @@ impl FromData for VersionInput {
 
 // REST Functions
 
-/// Set a version for a broadcaster / collection
-#[post("/v1/broadcasts/<_broadcaster_id>/<collection_id>", data = "<version>")]
+/// Set a version for a broadcaster / bchannel
+#[post("/v1/broadcasts/<_broadcaster_id>/<bchannel_id>", data = "<version>")]
 fn broadcast(
     conn: db::Conn,
     broadcaster: HandlerResult<Broadcaster>,
     _broadcaster_id: String,
-    collection_id: String,
+    bchannel_id: String,
     version: HandlerResult<VersionInput>,
 ) -> HandlerResult<Json> {
-    broadcaster?.broadcast_new_version(&conn, collection_id, version?.value)?;
+    broadcaster?.new_broadcast(&conn, bchannel_id, version?.value)?;
     Ok(Json(json!({
         "status": 200
     })))
@@ -86,11 +86,16 @@ fn broadcast(
 //fn get_broadcasts(bcast_admin: BroadcastAdmin, conn: db::Conn) -> HandlerResult<Json> {
 fn get_broadcasts(conn: db::Conn) -> HandlerResult<Json> {
     // flatten into HashMap FromIterator<(K, V)>
-    let broadcasts: HashMap<String, String> = versionv1::table
-        .select((versionv1::service_id, versionv1::version))
-        .load(&*conn)
+    let broadcasts: HashMap<String, String> = broadcastsv1::table
+        .select((
+            broadcastsv1::broadcaster_id,
+            broadcastsv1::bchannel_id,
+            broadcastsv1::version,
+        ))
+        .load::<Broadcast>(&*conn)
         .context(HandlerErrorKind::DBError)?
         .into_iter()
+        .map(|bcast| (bcast.id(), bcast.version))
         .collect();
     Ok(Json(json!({
         "status": 200,
