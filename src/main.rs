@@ -1,25 +1,22 @@
 #![feature(plugin)]
 #![plugin(rocket_codegen)]
 
-extern crate rocket;
+#[macro_use]
 extern crate diesel;
+#[macro_use]
+extern crate failure;
+extern crate rocket;
+#[macro_use]
+extern crate rocket_contrib;
+extern crate serde;
 extern crate serde_json;
-extern crate websocket;
 
-/* Set a version */
-#[post("/v1/rtu/<broadcaster_id>/<collection_id>")]
-fn accept(broadcaster_id: String, collection_id: String) -> String {
-    return String::from("Hello, Other world");
-}
+mod db;
+mod error;
+mod http;
 
-/* Dump the current table */
-#[get("/v1/rtu")]
-fn dump() -> String {
-    return String::from("Hello, Other world");
-}
-
-// TODO: Websocket handler.
+use http::rocket;
 
 fn main() {
-    println!("Hello world.");
+    rocket().expect("rocket failed").launch();
 }

@@ -1,0 +1,11 @@
+[development]
+#database_url = "mysql://"
+json_logging = false
+
+[staging]
+#database_url = "mysql://"
+json_logging = true
+
+[production]
+#database_url = "mysql://"
+json_logging = true
