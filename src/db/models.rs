@@ -36,7 +36,7 @@ impl Broadcaster {
             bchannel_id: bchannel_id,
             version: version,
         };
-         Ok(replace_into(broadcastsv1::table)
+        Ok(replace_into(broadcastsv1::table)
             .values(&broadcast)
             .execute(conn)
             .context(HandlerErrorKind::DBError)?)

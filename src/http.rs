@@ -1,17 +1,23 @@
 use std::convert::Into;
 use std::collections::HashMap;
 use std::io::Read;
+use std::error::Error;
 
 use diesel::{QueryDsl, RunQueryDsl};
+use diesel::dsl::sql;
+use diesel::result::Error as DieselError;
+use diesel::sql_types::Integer;
 use failure::ResultExt;
 use rocket::{self, Data, Request, Rocket};
 use rocket::data::{self, FromData};
-use rocket::Outcome::*;
+use rocket::http::Status;
+use rocket::Outcome::{Failure, Success};
 use rocket::outcome::IntoOutcome;
 use rocket::request::{self, FromRequest};
+use rocket::response::{content, status};
 use rocket_contrib::Json;
 
-use db::{self, pool_from_config};
+use db;
 use db::models::{Broadcast, Broadcaster};
 use db::schema::broadcastsv1;
 use error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
@@ -22,13 +28,13 @@ impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
     fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, HandlerError> {
         if let Some(_auth) = request.headers().get_one("Authorization") {
             // These should be guaranteed on the path when we're called
-            let broadcaster_id = request
+            let id = request
                 .get_param::<String>(0)
                 .map_err(HandlerErrorKind::RocketError)
                 .map_err(Into::into)
                 .into_outcome(VALIDATION_FAILED)?;
             // TODO: Validate auth cookie
-            Success(Broadcaster { id: broadcaster_id })
+            Success(Broadcaster { id: id })
         } else {
             Failure((
                 VALIDATION_FAILED,
@@ -77,7 +83,7 @@ fn broadcast(
 ) -> HandlerResult<Json> {
     broadcaster?.new_broadcast(&conn, bchannel_id, version?.value)?;
     Ok(Json(json!({
-        "status": 200
+        "code": 200
     })))
 }
 
@@ -98,22 +104,53 @@ fn get_broadcasts(conn: db::Conn) -> HandlerResult<Json> {
         .map(|bcast| (bcast.id(), bcast.version))
         .collect();
     Ok(Json(json!({
-        "status": 200,
+        "code": 200,
         "broadcasts": broadcasts
     })))
 }
 
+#[get("/__version__")]
+fn version() -> content::Json<&'static str> {
+    content::Json(include_str!("../version.json"))
+}
+
+#[get("/__heartbeat__")]
+fn heartbeat(conn: db::Conn) -> status::Custom<Json> {
+    let (status, db_msg) = match broadcastsv1::table
+        .select(sql::<Integer>("1"))
+        .get_result::<i32>(&*conn)
+    {
+        Ok(_) | Err(DieselError::NotFound) => (Status::Ok, "ok".to_string()),
+        Err(e) => (Status::ServiceUnavailable, e.description().to_string()),
+    };
+
+    status::Custom(
+        status,
+        Json(json!({
+            "status": if status == Status::Ok { "ok" } else { "error" },
+            "code": status.code,
+            "database": db_msg
+        })),
+    )
+}
+
+#[get("/__lheartbeat__")]
+fn lheartbeat() {}
+
 #[error(404)]
-fn not_found() -> HandlerResult<Json> {
+fn not_found() -> HandlerResult<()> {
     Err(HandlerErrorKind::NotFound)?
 }
 
 pub fn rocket() -> Result<Rocket> {
     let rocket = rocket::ignite();
-    let pool = pool_from_config(rocket.config())?;
+    let pool = db::pool_from_config(rocket.config())?;
     Ok(rocket
         .manage(pool)
-        .mount("/", routes![broadcast, get_broadcasts])
+        .mount(
+            "/",
+            routes![broadcast, get_broadcasts, version, heartbeat, lheartbeat],
+        )
         .catch(errors![not_found]))
 }
 
@@ -164,7 +201,7 @@ mod test {
             .body("v1")
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
-        assert_eq!(json_body(&mut response), json!({"status": 200}));
+        assert_eq!(json_body(&mut response), json!({"code": 200}));
     }
 
     #[test]
@@ -176,15 +213,8 @@ mod test {
             .dispatch();
         assert_eq!(response.status(), Status::BadRequest);
         let result = json_body(&mut response);
-        assert_eq!(result.get("status").unwrap(), Status::BadRequest.code);
-        assert!(
-            result
-                .get("error")
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .contains("Version")
-        );
+        assert_eq!(result["code"], Status::BadRequest.code);
+        assert!(result["error"].as_str().unwrap().contains("Version"));
     }
 
     #[test]
@@ -198,7 +228,7 @@ mod test {
         assert_eq!(response.status(), Status::NotFound);
         assert_eq!(
             json_body(&mut response),
-            json!({"status": 404, "error": "Not Found"})
+            json!({"code": 404, "error": "Not Found"})
         );
     }
 
@@ -208,7 +238,7 @@ mod test {
         let mut response = client.post("/v1/broadcasts/foo/bar").body("v1").dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
         let result = json_body(&mut response);
-        assert_eq!(result.get("status").unwrap(), 401);
+        assert_eq!(result["code"], 401);
     }
 
     #[test]
@@ -228,8 +258,34 @@ mod test {
         assert_eq!(response.status(), Status::Ok);
         assert_eq!(
             json_body(&mut response),
-            json!({"status": 200, "broadcasts": {"baz/quux": "v0", "foo/bar": "v1"}})
+            json!({"code": 200, "broadcasts": {"baz/quux": "v0", "foo/bar": "v1"}})
         );
     }
 
+    #[test]
+    fn test_version() {
+        let client = rocket_client();
+        let mut response = client.get("/__version__").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let result = json_body(&mut response);
+        assert_eq!(result["version"], "devel");
+    }
+
+    #[test]
+    fn test_heartbeat() {
+        let client = rocket_client();
+        let mut response = client.get("/__heartbeat__").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let result = json_body(&mut response);
+        assert_eq!(result["code"], 200);
+        assert_eq!(result["database"], "ok");
+    }
+
+    #[test]
+    fn test_lheartbeat() {
+        let client = rocket_client();
+        let mut response = client.get("/__lheartbeat__").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        assert!(response.body().is_none());
+    }
 }

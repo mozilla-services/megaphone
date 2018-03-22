@@ -50,11 +50,17 @@ impl HandlerErrorKind {
     /// Return a rocket response Status to be rendered for an error
     pub fn http_status(&self) -> Status {
         match *self {
-            HandlerErrorKind::DBError => Status::ServiceUnavailable,
-            HandlerErrorKind::NotFound => Status::NotFound,
             HandlerErrorKind::Unauthorized(..) => Status::Unauthorized,
+            HandlerErrorKind::NotFound => Status::NotFound,
+            HandlerErrorKind::DBError => Status::ServiceUnavailable,
             _ => Status::BadRequest,
         }
+    }
+}
+
+impl HandlerError {
+    pub fn kind(&self) -> &HandlerErrorKind {
+        self.inner.get_context()
     }
 }
 
@@ -74,17 +80,9 @@ impl fmt::Display for HandlerError {
     }
 }
 
-impl HandlerError {
-    pub fn kind(&self) -> &HandlerErrorKind {
-        self.inner.get_context()
-    }
-}
-
 impl From<HandlerErrorKind> for HandlerError {
     fn from(kind: HandlerErrorKind) -> HandlerError {
-        HandlerError {
-            inner: Context::new(kind),
-        }
+        Context::new(kind).into()
     }
 }
 
@@ -99,7 +97,7 @@ impl<'r> Responder<'r> for HandlerError {
     fn respond_to(self, request: &Request) -> response::Result<'r> {
         let status = self.kind().http_status();
         let json = Json(json!({
-            "status": status.code,
+            "code": status.code,
             "error": format!("{}", self)
         }));
         // XXX: logging
