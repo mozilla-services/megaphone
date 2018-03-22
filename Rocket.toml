@@ -2,10 +2,31 @@
 #database_url = "mysql://"
 json_logging = false
 
+# Auth tokens for broadcasters and readers of broadcasts
+[development.broadcaster_auth]
+#kinto = [
+#  "token1",
+#  "token2"
+#]
+#atmo = ["token3"]
+
+[development.reader_auth]
+#autopush_rs = ["token4"]
+
+
 [staging]
 #database_url = "mysql://"
 json_logging = true
 
+[staging.broadcaster_auth]
+
+[staging.reader_auth]
+
+
 [production]
 #database_url = "mysql://"
 json_logging = true
+
+[production.broadcaster_auth]
+
+[production.reader_auth]
