@@ -126,7 +126,10 @@ fn not_found() -> HandlerResult<()> {
 }
 
 pub fn rocket() -> Result<Rocket> {
-    let rocket = rocket::ignite();
+    setup_rocket(rocket::ignite())
+}
+
+fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
     let pool = db::pool_from_config(rocket.config())?;
     let authenticator = auth::BearerTokenAuthenticator::from_config(rocket.config())?;
     Ok(rocket
@@ -141,20 +144,23 @@ pub fn rocket() -> Result<Rocket> {
 
 #[cfg(test)]
 mod test {
-    use std::env;
+    use std::collections::HashMap;
 
     use diesel::Connection;
+    use rocket;
+    use rocket::config::{Config, Environment, RocketConfig};
     use rocket::local::Client;
     use rocket::http::{Header, Status};
     use rocket::response::Response;
     use serde_json::{self, Value};
 
     use db::MysqlPool;
-    use super::rocket;
+    use super::setup_rocket;
 
     /// Test auth headers
     enum Auth {
         Foo,
+        FooAlt,
         Baz,
         Reader,
     }
@@ -163,7 +169,8 @@ mod test {
         fn into(self) -> Header<'static> {
             let token = match self {
                 Auth::Foo => "feedfacedeadbeef",
-                Auth::Baz => "deadbeeffacefeed",
+                Auth::FooAlt => "deadbeeffacefeed",
+                Auth::Baz => "baada555deadbeef",
                 Auth::Reader => "00000000deadbeef",
             };
             Header::new("Authorization".to_string(), format!("Bearer {}", token))
@@ -175,15 +182,27 @@ mod test {
     /// The managed db pool is set to a maxiumum of one connection w/
     /// a transaction began that is never committed
     fn rocket_client() -> Client {
-        // hacky/easiest way to set into rocket's config
-        env::set_var("ROCKET_DATABASE_POOL_MAX_SIZE", "1");
-        env::set_var(
-            "ROCKET_BROADCASTER_AUTH",
-            r#"{foo=["feedfacedeadbeef"], baz=["deadbeeffacefeed"]}"#,
-        );
-        env::set_var("ROCKET_READER_AUTH", r#"{reader=["00000000deadbeef"]}"#);
+        // create a separate test config but inheriting database_url
+        let rconfig = RocketConfig::read().expect("reading rocket Config failed");
+        let database_url = rconfig
+            .active()
+            .get_str("database_url")
+            .expect("ROCKET_DATABASE_URL undefined");
 
-        let rocket = rocket().expect("rocket failed");
+        let mut bauth = HashMap::new();
+        bauth.insert("foo", vec!["feedfacedeadbeef", "deadbeeffacefeed"]);
+        bauth.insert("baz", vec!["baada555deadbeef"]);
+        let mut rauth = HashMap::new();
+        rauth.insert("reader", vec!["00000000deadbeef"]);
+
+        let config = Config::build(Environment::Development)
+            .extra("database_url", database_url)
+            .extra("database_pool_max_size", 1)
+            .extra("broadcaster_auth", bauth)
+            .extra("reader_auth", rauth)
+            .unwrap();
+
+        let rocket = setup_rocket(rocket::custom(config, true)).expect("rocket failed");
         {
             let pool = rocket.state::<MysqlPool>().unwrap();
             let conn = &*pool.get().expect("Couldn't connect to database");
@@ -282,7 +301,7 @@ mod test {
         let client = rocket_client();
         let _ = client
             .post("/v1/broadcasts/foo/bar")
-            .header(Auth::Foo)
+            .header(Auth::FooAlt)
             .body("v1")
             .dispatch();
         let _ = client
