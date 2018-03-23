@@ -11,6 +11,7 @@ extern crate rocket_contrib;
 extern crate serde;
 extern crate serde_json;
 
+mod auth;
 mod db;
 mod error;
 mod http;

@@ -31,26 +31,38 @@ pub struct HandlerError {
 #[derive(Clone, Eq, PartialEq, Debug, Fail)]
 pub enum HandlerErrorKind {
     /// 401 Unauthorized
-    #[fail(display = "Unauthorized: {}", _0)]
-    Unauthorized(String),
+    #[fail(display = "Missing authorization header")]
+    MissingAuth,
+    #[fail(display = "Invalid authorization header")]
+    InvalidAuth,
+    #[fail(display = "Unauthorized")]
+    Unauthorized,
+
     /// 404 Not Found
     #[fail(display = "Not Found")]
     NotFound,
+
     #[fail(display = "A database error occurred")]
     DBError,
+
     #[fail(display = "Version information not included in body of update")]
     MissingVersionDataError,
     #[fail(display = "Invalid Version info (must be URL safe Base 64)")]
     InvalidVersionDataError,
+
     #[fail(display = "Unexpected rocket error: {:?}", _0)]
     RocketError(rocket::Error), // rocket::Error isn't a std Error (so no #[cause])
+    #[fail(display = "Unexpected megaphone error")]
+    InternalError,
 }
 
 impl HandlerErrorKind {
     /// Return a rocket response Status to be rendered for an error
     pub fn http_status(&self) -> Status {
         match *self {
-            HandlerErrorKind::Unauthorized(..) => Status::Unauthorized,
+            HandlerErrorKind::MissingAuth
+            | HandlerErrorKind::InvalidAuth
+            | HandlerErrorKind::Unauthorized => Status::Unauthorized,
             HandlerErrorKind::NotFound => Status::NotFound,
             HandlerErrorKind::DBError => Status::ServiceUnavailable,
             _ => Status::BadRequest,

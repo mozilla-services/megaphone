@@ -1,5 +1,4 @@
 use std::convert::Into;
-use std::collections::HashMap;
 use std::io::Read;
 use std::error::Error;
 
@@ -17,8 +16,9 @@ use rocket::request::{self, FromRequest};
 use rocket::response::{content, status};
 use rocket_contrib::Json;
 
+use auth;
 use db;
-use db::models::{Broadcast, Broadcaster};
+use db::models::{Broadcaster, Reader};
 use db::schema::broadcastsv1;
 use error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
 
@@ -26,25 +26,11 @@ impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
     type Error = HandlerError;
 
     fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, HandlerError> {
-        if let Some(_auth) = request.headers().get_one("Authorization") {
-            // These should be guaranteed on the path when we're called
-            let id = request
-                .get_param::<String>(0)
-                .map_err(HandlerErrorKind::RocketError)
-                .map_err(Into::into)
-                .into_outcome(VALIDATION_FAILED)?;
-            // TODO: Validate auth cookie
-            Success(Broadcaster { id: id })
-        } else {
-            Failure((
-                VALIDATION_FAILED,
-                HandlerErrorKind::Unauthorized("Missing Authorization header".to_string()).into(),
-            ))
-        }
+        auth::authorized_broadcaster(request).into_outcome(VALIDATION_FAILED)
     }
 }
 
-/// Version information from command line.
+/// A new broadcast
 struct VersionInput {
     value: String,
 }
@@ -70,6 +56,14 @@ impl FromData for VersionInput {
     }
 }
 
+impl<'a, 'r> FromRequest<'a, 'r> for Reader {
+    type Error = HandlerError;
+
+    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, HandlerError> {
+        auth::authorized_reader(request).into_outcome(VALIDATION_FAILED)
+    }
+}
+
 // REST Functions
 
 /// Set a version for a broadcaster / bchannel
@@ -89,20 +83,8 @@ fn broadcast(
 
 /// Dump the current version table
 #[get("/v1/broadcasts")]
-//fn get_broadcasts(bcast_admin: BroadcastAdmin, conn: db::Conn) -> HandlerResult<Json> {
-fn get_broadcasts(conn: db::Conn) -> HandlerResult<Json> {
-    // flatten into HashMap FromIterator<(K, V)>
-    let broadcasts: HashMap<String, String> = broadcastsv1::table
-        .select((
-            broadcastsv1::broadcaster_id,
-            broadcastsv1::bchannel_id,
-            broadcastsv1::version,
-        ))
-        .load::<Broadcast>(&*conn)
-        .context(HandlerErrorKind::DBError)?
-        .into_iter()
-        .map(|bcast| (bcast.id(), bcast.version))
-        .collect();
+fn get_broadcasts(conn: db::Conn, reader: HandlerResult<Reader>) -> HandlerResult<Json> {
+    let broadcasts = reader?.read_broadcasts(&conn)?;
     Ok(Json(json!({
         "code": 200,
         "broadcasts": broadcasts
@@ -121,6 +103,7 @@ fn heartbeat(conn: db::Conn) -> status::Custom<Json> {
         .get_result::<i32>(&*conn)
     {
         Ok(_) | Err(DieselError::NotFound) => (Status::Ok, "ok".to_string()),
+        // XXX: sanitize db_msg
         Err(e) => (Status::ServiceUnavailable, e.description().to_string()),
     };
 
@@ -145,8 +128,10 @@ fn not_found() -> HandlerResult<()> {
 pub fn rocket() -> Result<Rocket> {
     let rocket = rocket::ignite();
     let pool = db::pool_from_config(rocket.config())?;
+    let authenticator = auth::BearerTokenAuthenticator::from_config(rocket.config())?;
     Ok(rocket
         .manage(pool)
+        .manage(authenticator)
         .mount(
             "/",
             routes![broadcast, get_broadcasts, version, heartbeat, lheartbeat],
@@ -167,6 +152,24 @@ mod test {
     use db::MysqlPool;
     use super::rocket;
 
+    /// Test auth headers
+    enum Auth {
+        Foo,
+        Baz,
+        Reader,
+    }
+
+    impl Into<Header<'static>> for Auth {
+        fn into(self) -> Header<'static> {
+            let token = match self {
+                Auth::Foo => "feedfacedeadbeef",
+                Auth::Baz => "deadbeeffacefeed",
+                Auth::Reader => "00000000deadbeef",
+            };
+            Header::new("Authorization".to_string(), format!("Bearer {}", token))
+        }
+    }
+
     /// Return a Rocket Client for testing
     ///
     /// The managed db pool is set to a maxiumum of one connection w/
@@ -174,6 +177,12 @@ mod test {
     fn rocket_client() -> Client {
         // hacky/easiest way to set into rocket's config
         env::set_var("ROCKET_DATABASE_POOL_MAX_SIZE", "1");
+        env::set_var(
+            "ROCKET_BROADCASTER_AUTH",
+            r#"{foo=["feedfacedeadbeef"], baz=["deadbeeffacefeed"]}"#,
+        );
+        env::set_var("ROCKET_READER_AUTH", r#"{reader=["00000000deadbeef"]}"#);
+
         let rocket = rocket().expect("rocket failed");
         {
             let pool = rocket.state::<MysqlPool>().unwrap();
@@ -181,10 +190,6 @@ mod test {
             conn.begin_test_transaction().unwrap();
         }
         Client::new(rocket).expect("rocket launch failed")
-    }
-
-    fn auth() -> Header<'static> {
-        Header::new("Authorization".to_string(), "Bearer XXX".to_string())
     }
 
     fn json_body(response: &mut Response) -> Value {
@@ -197,7 +202,7 @@ mod test {
         let client = rocket_client();
         let mut response = client
             .post("/v1/broadcasts/foo/bar")
-            .header(auth())
+            .header(Auth::Foo)
             .body("v1")
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
@@ -209,7 +214,7 @@ mod test {
         let client = rocket_client();
         let mut response = client
             .post("/v1/broadcasts/foo/bar")
-            .header(auth())
+            .header(Auth::Foo)
             .dispatch();
         assert_eq!(response.status(), Status::BadRequest);
         let result = json_body(&mut response);
@@ -222,7 +227,7 @@ mod test {
         let client = rocket_client();
         let mut response = client
             .post("/v1/broadcasts/foo")
-            .header(auth())
+            .header(Auth::Foo)
             .body("v1")
             .dispatch();
         assert_eq!(response.status(), Status::NotFound);
@@ -242,19 +247,50 @@ mod test {
     }
 
     #[test]
+    fn test_post_bad_auth() {
+        let client = rocket_client();
+        let mut response = client
+            .post("/v1/broadcasts/foo/bar")
+            .header(Auth::Baz)
+            .body("v1")
+            .dispatch();
+        assert_eq!(response.status(), Status::Unauthorized);
+        let result = json_body(&mut response);
+        assert_eq!(result["code"], 401);
+    }
+
+    #[test]
+    fn test_get_no_auth() {
+        let client = rocket_client();
+        let mut response = client.get("/v1/broadcasts").dispatch();
+        assert_eq!(response.status(), Status::Unauthorized);
+        let result = json_body(&mut response);
+        assert_eq!(result["code"], 401);
+    }
+
+    #[test]
+    fn test_get_bad_auth() {
+        let client = rocket_client();
+        let mut response = client.get("/v1/broadcasts").header(Auth::Foo).dispatch();
+        assert_eq!(response.status(), Status::Unauthorized);
+        let result = json_body(&mut response);
+        assert_eq!(result["code"], 401);
+    }
+
+    #[test]
     fn test_post_get() {
         let client = rocket_client();
         let _ = client
             .post("/v1/broadcasts/foo/bar")
-            .header(auth())
+            .header(Auth::Foo)
             .body("v1")
             .dispatch();
         let _ = client
             .post("/v1/broadcasts/baz/quux")
-            .header(auth())
+            .header(Auth::Baz)
             .body("v0")
             .dispatch();
-        let mut response = client.get("/v1/broadcasts").header(auth()).dispatch();
+        let mut response = client.get("/v1/broadcasts").header(Auth::Reader).dispatch();
         assert_eq!(response.status(), Status::Ok);
         assert_eq!(
             json_body(&mut response),
