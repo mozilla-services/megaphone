@@ -13,11 +13,5 @@ env:
 services:
   - mysql
 
-# XXX: kill the diesel_cli requirement:
-# https://docs.rs/diesel/0.16.0/diesel/macro.embed_migrations.html
 before_script:
   - mysql -e 'CREATE DATABASE IF NOT EXISTS megaphone;'
-  - |
-    cargo install diesel_cli --no-default-features --features mysql || \
-    echo "diesel_cli already installed"
-  - diesel setup --database-url $ROCKET_DATABASE_URL

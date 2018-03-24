@@ -132,6 +132,7 @@ pub fn rocket() -> Result<Rocket> {
 fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
     let pool = db::pool_from_config(rocket.config())?;
     let authenticator = auth::BearerTokenAuthenticator::from_config(rocket.config())?;
+    db::run_embedded_migrations(rocket.config())?;
     Ok(rocket
         .manage(pool)
         .manage(authenticator)
@@ -146,7 +147,6 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
 mod test {
     use std::collections::HashMap;
 
-    use diesel::Connection;
     use rocket;
     use rocket::config::{Config, Environment, RocketConfig};
     use rocket::local::Client;
@@ -154,7 +154,6 @@ mod test {
     use rocket::response::Response;
     use serde_json::{self, Value};
 
-    use db::MysqlPool;
     use super::setup_rocket;
 
     /// Test auth headers
@@ -198,16 +197,12 @@ mod test {
         let config = Config::build(Environment::Development)
             .extra("database_url", database_url)
             .extra("database_pool_max_size", 1)
+            .extra("database_use_test_transactions", true)
             .extra("broadcaster_auth", bauth)
             .extra("reader_auth", rauth)
             .unwrap();
 
         let rocket = setup_rocket(rocket::custom(config, true)).expect("rocket failed");
-        {
-            let pool = rocket.state::<MysqlPool>().unwrap();
-            let conn = &*pool.get().expect("Couldn't connect to database");
-            conn.begin_test_transaction().unwrap();
-        }
         Client::new(rocket).expect("rocket launch failed")
     }
 
