@@ -10,7 +10,6 @@ use std::collections::HashMap;
 
 use rocket::{Config, Request, State};
 use rocket::config::Value;
-use rocket::http::HeaderMap;
 
 use db::models::{Broadcaster, Reader};
 use error::{HandlerErrorKind, HandlerResult, Result};
@@ -58,7 +57,7 @@ impl BearerTokenAuthenticator {
         let name = group.config_name();
         let auth_config = config
             .get_table(name)
-            .map_err(|_| format_err!("Undefined or invalid ROCKET_{}", name.to_uppercase()))?;
+            .map_err(|_| format_err!("Invalid or undefined ROCKET_{}", name.to_uppercase()))?;
 
         for (user_id, tokens_val) in auth_config {
             if let Some(dupe) = self.groups.get(user_id) {
@@ -102,12 +101,9 @@ impl BearerTokenAuthenticator {
         Ok(())
     }
 
-    /// Determine if a Request headers' are for an authenticated user
-    fn authenticated_user<'r>(&self, headers: &HeaderMap<'r>) -> HandlerResult<(UserId, Group)> {
-        let auth_header = headers
-            .get_one("Authorization")
-            .ok_or_else(|| HandlerErrorKind::MissingAuth)?;
-        let parts: Vec<_> = auth_header.splitn(2, ' ').collect();
+    /// Determine if Bearer token is for an authenticated user
+    fn authenticated_user(&self, token: &str) -> HandlerResult<(UserId, Group)> {
+        let parts: Vec<_> = token.splitn(2, ' ').collect();
         if parts.len() != 2 || parts[0].to_lowercase() != "bearer" {
             Err(HandlerErrorKind::InvalidAuth)?
         }
@@ -123,14 +119,18 @@ impl BearerTokenAuthenticator {
     }
 }
 
-fn authenticated_user<'a, 'r>(request: &'a Request<'r>) -> HandlerResult<(UserId, Group)> {
+fn authenticated_user(request: &Request) -> HandlerResult<(UserId, Group)> {
+    let auth_header = request
+        .headers()
+        .get_one("Authorization")
+        .ok_or_else(|| HandlerErrorKind::MissingAuth)?;
     request
         .guard::<State<BearerTokenAuthenticator>>()
         .success_or(HandlerErrorKind::InternalError)?
-        .authenticated_user(request.headers())
+        .authenticated_user(auth_header)
 }
 
-pub fn authorized_broadcaster<'a, 'r>(request: &'a Request<'r>) -> HandlerResult<Broadcaster> {
+pub fn authorized_broadcaster(request: &Request) -> HandlerResult<Broadcaster> {
     let (id, group) = authenticated_user(request)?;
 
     // param should be guaranteed on the path when we're called
@@ -146,7 +146,7 @@ pub fn authorized_broadcaster<'a, 'r>(request: &'a Request<'r>) -> HandlerResult
     }
 }
 
-pub fn authorized_reader<'a, 'r>(request: &'a Request<'r>) -> HandlerResult<Reader> {
+pub fn authorized_reader(request: &Request) -> HandlerResult<Reader> {
     let (id, group) = authenticated_user(request)?;
     if group == Group::Reader {
         // Authorized
@@ -161,7 +161,6 @@ mod test {
     use std::collections::HashMap;
 
     use rocket::config::{Config, Environment};
-    use rocket::http::HeaderMap;
 
     use super::{BearerTokenAuthenticator, Group};
 
@@ -179,22 +178,15 @@ mod test {
             .unwrap();
         let authenicator = BearerTokenAuthenticator::from_config(&config).unwrap();
 
-        let mut map = HeaderMap::new();
-        map.add_raw("Authorization", "Bearer quux");
         assert_eq!(
-            authenicator.authenticated_user(&map).unwrap(),
-            ("baz".into(), Group::Broadcaster)
+            authenicator.authenticated_user("Bearer quux").unwrap(),
+            ("baz".to_string(), Group::Broadcaster)
         );
-        let mut map = HeaderMap::new();
-        map.add_raw("Authorization", "Bearer push");
         assert_eq!(
-            authenicator.authenticated_user(&map).unwrap(),
-            ("otto".into(), Group::Reader)
+            authenicator.authenticated_user("Bearer push").unwrap(),
+            ("otto".to_string(), Group::Reader)
         );
-
-        let mut map = HeaderMap::new();
-        map.add_raw("Authorization", "Bearer mega");
-        assert!(authenicator.authenticated_user(&map).is_err());
+        assert!(authenicator.authenticated_user("Bearer mega").is_err());
     }
 
     #[test]

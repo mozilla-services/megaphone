@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use failure::ResultExt;
 use diesel::{replace_into, QueryDsl, RunQueryDsl};
 use diesel::mysql::MysqlConnection;
+use failure::ResultExt;
 
 use super::schema::broadcastsv1;
 use error::{HandlerErrorKind, HandlerResult};
@@ -49,7 +49,7 @@ impl Broadcaster {
     }
 }
 
-/// An authorized reader of the broadcasts
+/// An authorized reader of broadcasts
 pub struct Reader {
     pub id: String,
 }
