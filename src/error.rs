@@ -10,8 +10,8 @@ use std::fmt;
 use std::result;
 
 use failure::{Backtrace, Context, Error, Fail};
-use rocket::{self, response, Request};
-use rocket::http::Status;
+use rocket::{self, response, Request, State};
+use rocket::http::{Header, Status};
 use rocket::response::{Responder, Response};
 use rocket_contrib::Json;
 
@@ -30,12 +30,14 @@ pub struct HandlerError {
 
 #[derive(Clone, Eq, PartialEq, Debug, Fail)]
 pub enum HandlerErrorKind {
-    /// 401 Unauthorized
+    /// 401 "Unauthorized" (unauthenticated)
     #[fail(display = "Missing authorization header")]
     MissingAuth,
     #[fail(display = "Invalid authorization header")]
     InvalidAuth,
-    #[fail(display = "Unauthorized")]
+
+    /// 403 Forbidden (unauthorized)
+    #[fail(display = "Access denied to the requested resource")]
     Unauthorized,
 
     /// 404 Not Found
@@ -60,9 +62,8 @@ impl HandlerErrorKind {
     /// Return a rocket response Status to be rendered for an error
     pub fn http_status(&self) -> Status {
         match *self {
-            HandlerErrorKind::MissingAuth
-            | HandlerErrorKind::InvalidAuth
-            | HandlerErrorKind::Unauthorized => Status::Unauthorized,
+            HandlerErrorKind::MissingAuth | HandlerErrorKind::InvalidAuth => Status::Unauthorized,
+            HandlerErrorKind::Unauthorized => Status::Forbidden,
             HandlerErrorKind::NotFound => Status::NotFound,
             HandlerErrorKind::DBError => Status::ServiceUnavailable,
             _ => Status::BadRequest,
@@ -113,8 +114,18 @@ impl<'r> Responder<'r> for HandlerError {
             "error": format!("{}", self)
         }));
         // XXX: logging
-        Response::build_from(json.respond_to(request)?)
-            .status(status)
-            .ok()
+        let mut builder = Response::build_from(json.respond_to(request)?);
+        if status == Status::Unauthorized {
+            let environment = request
+                .guard::<State<rocket::config::Environment>>()
+                .succeeded()
+                .map(|state| *state)
+                .unwrap_or(rocket::config::Environment::Development);
+            builder.header(Header::new(
+                "WWW-Authenticate",
+                format!(r#"Bearer realm="{}""#, environment),
+            ));
+        }
+        builder.status(status).ok()
     }
 }
