@@ -30,4 +30,7 @@ COPY --from=builder /app/bin /app/bin
 WORKDIR /app
 USER app
 
+# override rocket's dev env defaulting to localhost
+ENV ROCKET_ADDRESS 0.0.0.0
+
 CMD ["/app/bin/megaphone"]

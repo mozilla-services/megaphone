@@ -101,9 +101,9 @@ impl BearerTokenAuthenticator {
         Ok(())
     }
 
-    /// Determine if Bearer token is for an authenticated user
-    fn authenticated_user(&self, token: &str) -> HandlerResult<(UserId, Group)> {
-        let parts: Vec<_> = token.splitn(2, ' ').collect();
+    /// Determine if Bearer token header is for an authenticated user
+    fn authenticated_user(&self, credentials: &str) -> HandlerResult<(UserId, Group)> {
+        let parts: Vec<_> = credentials.splitn(2, ' ').collect();
         if parts.len() != 2 || parts[0].to_lowercase() != "bearer" {
             Err(HandlerErrorKind::InvalidAuth)?
         }
@@ -120,14 +120,14 @@ impl BearerTokenAuthenticator {
 }
 
 fn authenticated_user(request: &Request) -> HandlerResult<(UserId, Group)> {
-    let auth_header = request
+    let credentials = request
         .headers()
         .get_one("Authorization")
         .ok_or_else(|| HandlerErrorKind::MissingAuth)?;
     request
         .guard::<State<BearerTokenAuthenticator>>()
         .success_or(HandlerErrorKind::InternalError)?
-        .authenticated_user(auth_header)
+        .authenticated_user(credentials)
 }
 
 pub fn authorized_broadcaster(request: &Request) -> HandlerResult<Broadcaster> {
