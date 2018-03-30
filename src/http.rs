@@ -132,10 +132,12 @@ pub fn rocket() -> Result<Rocket> {
 fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
     let pool = db::pool_from_config(rocket.config())?;
     let authenticator = auth::BearerTokenAuthenticator::from_config(rocket.config())?;
+    let environment = rocket.config().environment;
     db::run_embedded_migrations(rocket.config())?;
     Ok(rocket
         .manage(pool)
         .manage(authenticator)
+        .manage(environment)
         .mount(
             "/",
             routes![broadcast, get_broadcasts, version, heartbeat, lheartbeat],
@@ -256,6 +258,13 @@ mod test {
         let client = rocket_client();
         let mut response = client.post("/v1/broadcasts/foo/bar").body("v1").dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
+        assert!(
+            response
+                .headers()
+                .get_one("WWW-Authenticate")
+                .unwrap()
+                .starts_with("Bearer ")
+        );
         let result = json_body(&mut response);
         assert_eq!(result["code"], 401);
     }
@@ -268,9 +277,9 @@ mod test {
             .header(Auth::Baz)
             .body("v1")
             .dispatch();
-        assert_eq!(response.status(), Status::Unauthorized);
+        assert_eq!(response.status(), Status::Forbidden);
         let result = json_body(&mut response);
-        assert_eq!(result["code"], 401);
+        assert_eq!(result["code"], 403);
     }
 
     #[test]
@@ -278,6 +287,13 @@ mod test {
         let client = rocket_client();
         let mut response = client.get("/v1/broadcasts").dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
+        assert!(
+            response
+                .headers()
+                .get_one("WWW-Authenticate")
+                .unwrap()
+                .starts_with("Bearer ")
+        );
         let result = json_body(&mut response);
         assert_eq!(result["code"], 401);
     }
@@ -286,9 +302,9 @@ mod test {
     fn test_get_bad_auth() {
         let client = rocket_client();
         let mut response = client.get("/v1/broadcasts").header(Auth::Foo).dispatch();
-        assert_eq!(response.status(), Status::Unauthorized);
+        assert_eq!(response.status(), Status::Forbidden);
         let result = json_body(&mut response);
-        assert_eq!(result["code"], 401);
+        assert_eq!(result["code"], 403);
     }
 
     #[test]
