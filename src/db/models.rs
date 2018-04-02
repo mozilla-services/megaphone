@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
-use diesel::{replace_into, QueryDsl, RunQueryDsl};
+use diesel::{sql_query, QueryDsl, RunQueryDsl};
 use diesel::mysql::MysqlConnection;
+use diesel::sql_types::Text;
 use failure::ResultExt;
 
 use super::schema::broadcastsv1;
@@ -31,21 +32,31 @@ impl Broadcaster {
         Broadcaster { id: id }
     }
 
-    pub fn new_broadcast(
+    /// Broadcast a new version
+    ///
+    /// Returns:
+    ///
+    /// Err(HandlerError) on failure.
+    ///
+    /// Ok(true) if this Broadcast did not have a current version and one was
+    /// successfully created.
+    ///
+    /// Ok(false) if this Broadcast had an existing version that was
+    /// successfully modified to the new version.
+    pub fn broadcast_new_version(
         self,
         conn: &MysqlConnection,
         bchannel_id: String,
         version: String,
-    ) -> HandlerResult<usize> {
-        let broadcast = Broadcast {
-            broadcaster_id: self.id,
-            bchannel_id: bchannel_id,
-            version: version,
-        };
-        Ok(replace_into(broadcastsv1::table)
-            .values(&broadcast)
+    ) -> HandlerResult<bool> {
+        let affected_rows = sql_query(include_str!("upsert_broadcast.sql"))
+            .bind::<Text, _>(&self.id)
+            .bind::<Text, _>(&bchannel_id)
+            .bind::<Text, _>(&version)
+            .bind::<Text, _>(&version)
             .execute(conn)
-            .context(HandlerErrorKind::DBError)?)
+            .context(HandlerErrorKind::DBError)?;
+        Ok(affected_rows == 1)
     }
 }
 

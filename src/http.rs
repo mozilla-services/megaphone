@@ -67,18 +67,22 @@ impl<'a, 'r> FromRequest<'a, 'r> for Reader {
 // REST Functions
 
 /// Set a version for a broadcaster / bchannel
-#[post("/v1/broadcasts/<_broadcaster_id>/<bchannel_id>", data = "<version>")]
+#[put("/v1/broadcasts/<_broadcaster_id>/<bchannel_id>", data = "<version>")]
 fn broadcast(
     conn: db::Conn,
     broadcaster: HandlerResult<Broadcaster>,
     _broadcaster_id: String,
     bchannel_id: String,
     version: HandlerResult<VersionInput>,
-) -> HandlerResult<Json> {
-    broadcaster?.new_broadcast(&conn, bchannel_id, version?.value)?;
-    Ok(Json(json!({
-        "code": 200
-    })))
+) -> HandlerResult<status::Custom<Json>> {
+    let created = broadcaster?.broadcast_new_version(&conn, bchannel_id, version?.value)?;
+    let status = if created { Status::Created } else { Status::Ok };
+    Ok(status::Custom(
+        status,
+        Json(json!({
+            "code": status.code
+        })),
+    ))
 }
 
 /// Dump the current version table
@@ -214,11 +218,18 @@ mod test {
     }
 
     #[test]
-    fn test_post() {
+    fn test_put() {
         let client = rocket_client();
         let mut response = client
-            .post("/v1/broadcasts/foo/bar")
+            .put("/v1/broadcasts/foo/bar")
             .header(Auth::Foo)
+            .body("v0")
+            .dispatch();
+        assert_eq!(response.status(), Status::Created);
+        assert_eq!(json_body(&mut response), json!({"code": 201}));
+        let mut response = client
+            .put("/v1/broadcasts/foo/bar")
+            .header(Auth::FooAlt)
             .body("v1")
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
@@ -226,10 +237,10 @@ mod test {
     }
 
     #[test]
-    fn test_post_no_body() {
+    fn test_put_no_body() {
         let client = rocket_client();
         let mut response = client
-            .post("/v1/broadcasts/foo/bar")
+            .put("/v1/broadcasts/foo/bar")
             .header(Auth::Foo)
             .dispatch();
         assert_eq!(response.status(), Status::BadRequest);
@@ -239,10 +250,10 @@ mod test {
     }
 
     #[test]
-    fn test_post_no_id() {
+    fn test_put_no_id() {
         let client = rocket_client();
         let mut response = client
-            .post("/v1/broadcasts/foo")
+            .put("/v1/broadcasts/foo")
             .header(Auth::Foo)
             .body("v1")
             .dispatch();
@@ -254,9 +265,9 @@ mod test {
     }
 
     #[test]
-    fn test_post_no_auth() {
+    fn test_put_no_auth() {
         let client = rocket_client();
-        let mut response = client.post("/v1/broadcasts/foo/bar").body("v1").dispatch();
+        let mut response = client.put("/v1/broadcasts/foo/bar").body("v1").dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
         assert!(
             response
@@ -270,10 +281,10 @@ mod test {
     }
 
     #[test]
-    fn test_post_bad_auth() {
+    fn test_put_bad_auth() {
         let client = rocket_client();
         let mut response = client
-            .post("/v1/broadcasts/foo/bar")
+            .put("/v1/broadcasts/foo/bar")
             .header(Auth::Baz)
             .body("v1")
             .dispatch();
@@ -308,15 +319,15 @@ mod test {
     }
 
     #[test]
-    fn test_post_get() {
+    fn test_put_get() {
         let client = rocket_client();
         let _ = client
-            .post("/v1/broadcasts/foo/bar")
+            .put("/v1/broadcasts/foo/bar")
             .header(Auth::FooAlt)
             .body("v1")
             .dispatch();
         let _ = client
-            .post("/v1/broadcasts/baz/quux")
+            .put("/v1/broadcasts/baz/quux")
             .header(Auth::Baz)
             .body("v0")
             .dispatch();
