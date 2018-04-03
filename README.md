@@ -1,3 +1,5 @@
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-blue.svg)](https://opensource.org/licenses/MPL-2.0) [![Test Status](https://travis-ci.org/mozilla-services/megaphone.svg?branch=master)](https://travis-ci.org/mozilla-services/megaphone) [![Build Status](https://circleci.com/gh/mozilla-services/megaphone.svg?style=shield&circle-token=074ae89011d1a7601378c41a4351e1e03f1e8177)](https://circleci.com/gh/mozilla-services/megaphone)
+
 # Megaphone
 **A rust based real-time update broadcast server for Firefox**
 
