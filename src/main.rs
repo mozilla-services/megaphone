@@ -12,6 +12,9 @@ extern crate rocket;
 extern crate rocket_contrib;
 extern crate serde;
 extern crate serde_json;
+#[cfg(test)]
+#[macro_use]
+extern crate toml;
 
 mod auth;
 mod db;

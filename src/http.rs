@@ -1,19 +1,19 @@
 use std::convert::Into;
-use std::io::Read;
 use std::error::Error;
+use std::io::Read;
 
-use diesel::{QueryDsl, RunQueryDsl};
 use diesel::dsl::sql;
 use diesel::result::Error as DieselError;
 use diesel::sql_types::Integer;
+use diesel::{QueryDsl, RunQueryDsl};
 use failure::ResultExt;
-use rocket::{self, Data, Request, Rocket};
+use rocket::Outcome::{Failure, Success};
 use rocket::data::{self, FromData};
 use rocket::http::Status;
-use rocket::Outcome::{Failure, Success};
 use rocket::outcome::IntoOutcome;
 use rocket::request::{self, FromRequest};
 use rocket::response::{content, status};
+use rocket::{self, Data, Request, Rocket};
 use rocket_contrib::Json;
 
 use auth;
@@ -151,12 +151,10 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-
     use rocket;
     use rocket::config::{Config, Environment, RocketConfig};
-    use rocket::local::Client;
     use rocket::http::{Header, Status};
+    use rocket::local::Client;
     use rocket::response::Response;
     use serde_json::{self, Value};
 
@@ -194,18 +192,18 @@ mod test {
             .get_str("database_url")
             .expect("ROCKET_DATABASE_URL undefined");
 
-        let mut bauth = HashMap::new();
-        bauth.insert("foo", vec!["feedfacedeadbeef", "deadbeeffacefeed"]);
-        bauth.insert("baz", vec!["baada555deadbeef"]);
-        let mut rauth = HashMap::new();
-        rauth.insert("reader", vec!["00000000deadbeef"]);
-
         let config = Config::build(Environment::Development)
             .extra("database_url", database_url)
             .extra("database_pool_max_size", 1)
             .extra("database_use_test_transactions", true)
-            .extra("broadcaster_auth", bauth)
-            .extra("reader_auth", rauth)
+            .extra(
+                "broadcaster_auth",
+                toml!{
+                    foo = ["feedfacedeadbeef", "deadbeeffacefeed"]
+                    baz = ["baada555deadbeef"]
+                },
+            )
+            .extra("reader_auth", toml!{reader = ["00000000deadbeef"]})
             .unwrap();
 
         let rocket = setup_rocket(rocket::custom(config, true)).expect("rocket failed");

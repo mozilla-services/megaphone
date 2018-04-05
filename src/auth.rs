@@ -8,8 +8,8 @@
 /// broadcasts.
 use std::collections::HashMap;
 
-use rocket::{Config, Request, State};
 use rocket::config::Value;
+use rocket::{Config, Request, State};
 
 use db::models::{Broadcaster, Reader};
 use error::{HandlerErrorKind, HandlerResult, Result};
@@ -158,23 +158,15 @@ pub fn authorized_reader(request: &Request) -> HandlerResult<Reader> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-
     use rocket::config::{Config, Environment};
 
     use super::{BearerTokenAuthenticator, Group};
 
     #[test]
     fn test_basic() {
-        let mut bauth = HashMap::new();
-        bauth.insert("foo", vec!["bar"]);
-        bauth.insert("baz", vec!["quux"]);
-        let mut rauth = HashMap::new();
-        rauth.insert("otto", vec!["push"]);
-
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", bauth)
-            .extra("reader_auth", rauth)
+            .extra("broadcaster_auth", toml!{foo = ["bar"] baz = ["quux"]})
+            .extra("reader_auth", toml!{otto = ["push"]})
             .unwrap();
         let authenicator = BearerTokenAuthenticator::from_config(&config).unwrap();
 
@@ -191,38 +183,27 @@ mod test {
 
     #[test]
     fn test_dupe_token() {
-        let mut bauth = HashMap::new();
-        bauth.insert("foo", vec!["bar"]);
-        bauth.insert("baz", vec!["bar"]);
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", bauth)
-            .extra("reader_auth", HashMap::<&str, Vec<&str>>::new())
+            .extra("broadcaster_auth", toml!{foo = ["bar"] baz = ["bar"]})
+            .extra("reader_auth", toml!{otto = ["push"]})
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }
 
     #[test]
     fn test_dupe_token2() {
-        let mut bauth = HashMap::new();
-        bauth.insert("foo", vec!["bar"]);
-        let mut rauth = HashMap::new();
-        rauth.insert("baz", vec!["quux", "bar"]);
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", bauth)
-            .extra("reader_auth", rauth)
+            .extra("broadcaster_auth", toml!{foo = ["bar"]})
+            .extra("reader_auth", toml!{baz = ["quux", "bar"]})
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }
 
     #[test]
     fn test_dupe_user() {
-        let mut bauth = HashMap::new();
-        bauth.insert("foo", vec!["bar"]);
-        let mut rauth = HashMap::new();
-        rauth.insert("foo", vec!["baz"]);
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", bauth)
-            .extra("reader_auth", rauth)
+            .extra("broadcaster_auth", toml!{foo = ["bar"]})
+            .extra("reader_auth", toml!{foo = ["baz"]})
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }

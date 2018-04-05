@@ -1,5 +1,5 @@
-pub mod schema;
 pub mod models;
+pub mod schema;
 
 use std::ops::Deref;
 use std::result::Result as StdResult;
