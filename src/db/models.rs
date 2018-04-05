@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use diesel::{sql_query, QueryDsl, RunQueryDsl};
 use diesel::mysql::MysqlConnection;
 use diesel::sql_types::Text;
+use diesel::{sql_query, QueryDsl, RunQueryDsl};
 use failure::ResultExt;
 
 use super::schema::broadcastsv1;

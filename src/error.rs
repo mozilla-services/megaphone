@@ -10,9 +10,9 @@ use std::fmt;
 use std::result;
 
 use failure::{Backtrace, Context, Error, Fail};
-use rocket::{self, response, Request, State};
 use rocket::http::{Header, Status};
 use rocket::response::{Responder, Response};
+use rocket::{self, response, Request, State};
 use rocket_contrib::Json;
 
 pub type Result<T> = result::Result<T, Error>;
