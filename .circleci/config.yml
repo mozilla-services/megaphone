@@ -9,9 +9,13 @@ version: 2
 jobs:
   build:
     docker:
-      - image: docker:17.12.1-ce
+      - image: docker:18.03.0-ce
     working_directory: /dockerflow
     steps:
+      - run:
+          name: Install Docker build dependencies
+          command: apk add --no-cache openssh-client git
+
       - checkout
       - setup_remote_docker
 
@@ -42,7 +46,7 @@ jobs:
 
   deploy:
     docker:
-      - image: docker:17.12.1-ce
+      - image: docker:18.03.0-ce
     steps:
       - setup_remote_docker
       - restore_cache:
