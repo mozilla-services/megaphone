@@ -1,3 +1,13 @@
+<a name="0.1.1"></a>
+## 0.1.1 (2018-04-06)
+
+
+#### Chore
+
+*   install openssh-client git & git on docker-in-docker ([f81d556a](https://github.com/mozilla-services/megaphone/commit/f81d556a415d7e775e358373df22e125d0c37406))
+
+
+
 <a name="0.1.0"></a>
 ## 0.1.0 (2018-04-05)
 
