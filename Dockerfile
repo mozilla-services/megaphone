@@ -4,7 +4,7 @@ FROM rust:1.25.0-stretch as builder
 ADD . /app
 WORKDIR /app
 
-ARG RUST_TOOLCHAIN=nightly-2018-04-04
+ARG RUST_TOOLCHAIN=nightly-2018-05-05
 
 RUN \
     apt-get -qq update && \
