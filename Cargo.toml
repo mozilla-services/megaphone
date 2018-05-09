@@ -4,8 +4,8 @@ version = "0.1.1"
 authors = ["jrconlin <me+crypt@jrconlin.com>"]
 
 [dependencies]
-diesel = { version = "1.1", features = ["mysql", "r2d2"] }
-diesel_migrations = { version = "1.1", features = ["mysql"] }
+diesel = { version = "1.2", features = ["mysql", "r2d2"] }
+diesel_migrations = { version = "1.2", features = ["mysql"] }
 failure = "0.1"
 rocket = "0.3"
 rocket_codegen = "0.3"
