@@ -15,6 +15,8 @@ use rocket::response::{Responder, Response};
 use rocket::{self, response, Request, State};
 use rocket_contrib::Json;
 
+use logging::RequestLogger;
+
 pub type Result<T> = result::Result<T, Error>;
 
 pub type HandlerResult<T> = result::Result<T, HandlerError>;
@@ -109,11 +111,13 @@ impl From<Context<HandlerErrorKind>> for HandlerError {
 impl<'r> Responder<'r> for HandlerError {
     fn respond_to(self, request: &Request) -> response::Result<'r> {
         let status = self.kind().http_status();
+        let log = RequestLogger::with_request(request).map_err(|_| Status::InternalServerError)?;
+        slog_debug!(log, "{}", &self; "code" => status.code);
+
         let json = Json(json!({
             "code": status.code,
             "error": format!("{}", self)
         }));
-        // XXX: logging
         let mut builder = Response::build_from(json.respond_to(request)?);
         if status == Status::Unauthorized {
             let environment = request

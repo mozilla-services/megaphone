@@ -7,12 +7,12 @@ use diesel::result::Error as DieselError;
 use diesel::sql_types::Integer;
 use diesel::{QueryDsl, RunQueryDsl};
 use failure::ResultExt;
-use rocket::Outcome::{Failure, Success};
 use rocket::data::{self, FromData};
 use rocket::http::Status;
 use rocket::outcome::IntoOutcome;
 use rocket::request::{self, FromRequest};
 use rocket::response::{content, status};
+use rocket::Outcome::{Failure, Success};
 use rocket::{self, Data, Request, Rocket};
 use rocket_contrib::Json;
 
@@ -21,6 +21,7 @@ use db;
 use db::models::{Broadcaster, Reader};
 use db::schema::broadcastsv1;
 use error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
+use logging::{self, RequestLogger};
 
 impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
     type Error = HandlerError;
@@ -31,6 +32,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
 }
 
 /// A new broadcast
+#[derive(Debug)]
 struct VersionInput {
     value: String,
 }
@@ -67,16 +69,26 @@ impl<'a, 'r> FromRequest<'a, 'r> for Reader {
 // REST Functions
 
 /// Set a version for a broadcaster / bchannel
-#[put("/v1/broadcasts/<_broadcaster_id>/<bchannel_id>", data = "<version>")]
+#[put("/v1/broadcasts/<broadcaster_id>/<bchannel_id>", data = "<version>")]
 fn broadcast(
     conn: db::Conn,
+    log: RequestLogger,
     broadcaster: HandlerResult<Broadcaster>,
-    _broadcaster_id: String,
+    broadcaster_id: String,
     bchannel_id: String,
     version: HandlerResult<VersionInput>,
 ) -> HandlerResult<status::Custom<Json>> {
-    let created = broadcaster?.broadcast_new_version(&conn, bchannel_id, version?.value)?;
+    let version = version?.value;
+    let created = broadcaster?.broadcast_new_version(&conn, &bchannel_id, &version)?;
     let status = if created { Status::Created } else { Status::Ok };
+    slog_info!(
+        log,
+        "Broadcast: {}/{} new version: {}",
+        broadcaster_id,
+        bchannel_id,
+        &version;
+        "code" => status.code
+    );
     Ok(status::Custom(
         status,
         Json(json!({
@@ -137,11 +149,13 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
     let pool = db::pool_from_config(rocket.config())?;
     let authenticator = auth::BearerTokenAuthenticator::from_config(rocket.config())?;
     let environment = rocket.config().environment;
+    let logger = logging::init_logging(rocket.config())?;
     db::run_embedded_migrations(rocket.config())?;
     Ok(rocket
         .manage(pool)
         .manage(authenticator)
         .manage(environment)
+        .manage(logger)
         .mount(
             "/",
             routes![broadcast, get_broadcasts, version, heartbeat, lbheartbeat],
@@ -196,6 +210,7 @@ mod test {
             .extra("database_url", database_url)
             .extra("database_pool_max_size", 1)
             .extra("database_use_test_transactions", true)
+            .extra("json_logging", false)
             .extra(
                 "broadcaster_auth",
                 toml!{
