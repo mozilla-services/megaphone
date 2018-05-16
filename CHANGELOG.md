@@ -1,3 +1,13 @@
+<a name="0.1.2"></a>
+## 0.1.2 (2018-05-16)
+
+
+#### Features
+
+*   upgrade to rocket 0.3.10 ([45d3b004](https://github.com/mozilla-services/megaphone/commit/45d3b0047fa5843049518ea7df780eb442bd89f1), closes [#36](https://github.com/mozilla-services/megaphone/issues/36))
+
+
+
 <a name="0.1.1"></a>
 ## 0.1.1 (2018-04-06)
 
