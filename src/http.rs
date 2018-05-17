@@ -121,8 +121,8 @@ fn heartbeat(conn: db::Conn) -> status::Custom<Json> {
     )
 }
 
-#[get("/__lheartbeat__")]
-fn lheartbeat() {}
+#[get("/__lbheartbeat__")]
+fn lbheartbeat() {}
 
 #[error(404)]
 fn not_found() -> HandlerResult<()> {
@@ -144,7 +144,7 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
         .manage(environment)
         .mount(
             "/",
-            routes![broadcast, get_broadcasts, version, heartbeat, lheartbeat],
+            routes![broadcast, get_broadcasts, version, heartbeat, lbheartbeat],
         )
         .catch(errors![not_found]))
 }
@@ -357,9 +357,9 @@ mod test {
     }
 
     #[test]
-    fn test_lheartbeat() {
+    fn test_lbheartbeat() {
         let client = rocket_client();
-        let mut response = client.get("/__lheartbeat__").dispatch();
+        let mut response = client.get("/__lbheartbeat__").dispatch();
         assert_eq!(response.status(), Status::Ok);
         assert!(response.body().is_none());
     }
