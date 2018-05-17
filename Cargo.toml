@@ -1,6 +1,6 @@
 [package]
 name = "megaphone"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["jrconlin <me+crypt@jrconlin.com>"]
 
 [dependencies]
