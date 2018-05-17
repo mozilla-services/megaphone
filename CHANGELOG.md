@@ -1,3 +1,13 @@
+<a name="0.1.3"></a>
+## 0.1.3 (2018-05-17)
+
+
+#### Bug Fixes
+
+*   lheartbeat -> lbheartbeat ([2d8bf644](https://github.com/mozilla-services/megaphone/commit/2d8bf644ba65bd6aaa65a70510a33db6dfaaac8e), closes [#40](https://github.com/mozilla-services/megaphone/issues/40))
+
+
+
 <a name="0.1.2"></a>
 ## 0.1.2 (2018-05-16)
 
