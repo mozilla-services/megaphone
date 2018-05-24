@@ -4,9 +4,9 @@ pub mod schema;
 use std::ops::Deref;
 use std::result::Result as StdResult;
 
-use diesel::Connection;
 use diesel::mysql::MysqlConnection;
 use diesel::r2d2::{ConnectionManager, CustomizeConnection, Error, Pool, PooledConnection};
+use diesel::Connection;
 use failure::err_msg;
 
 use rocket::http::Status;

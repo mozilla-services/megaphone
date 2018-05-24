@@ -46,14 +46,14 @@ impl Broadcaster {
     pub fn broadcast_new_version(
         self,
         conn: &MysqlConnection,
-        bchannel_id: String,
-        version: String,
+        bchannel_id: &str,
+        version: &str,
     ) -> HandlerResult<bool> {
         let affected_rows = sql_query(include_str!("upsert_broadcast.sql"))
             .bind::<Text, _>(&self.id)
-            .bind::<Text, _>(&bchannel_id)
-            .bind::<Text, _>(&version)
-            .bind::<Text, _>(&version)
+            .bind::<Text, _>(bchannel_id)
+            .bind::<Text, _>(version)
+            .bind::<Text, _>(version)
             .execute(conn)
             .context(HandlerErrorKind::DBError)?;
         Ok(affected_rows == 1)
