@@ -49,9 +49,14 @@ pub enum HandlerErrorKind {
     #[fail(display = "A database error occurred")]
     DBError,
 
+    #[fail(display = "Invalid broadcasterID (must be URL safe base64, <= 64 characters)")]
+    InvalidBroadcasterId,
+    #[fail(display = "Invalid bchannelID (must be URL safe base64, <= 128 characters)")]
+    InvalidBchannelId,
+
     #[fail(display = "Version information not included in body of update")]
     MissingVersionDataError,
-    #[fail(display = "Invalid Version info (must be URL safe Base 64)")]
+    #[fail(display = "Invalid Version (must be ASCII, <= 200 characters)")]
     InvalidVersionDataError,
 
     #[fail(display = "Unexpected rocket error: {:?}", _0)]

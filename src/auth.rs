@@ -108,11 +108,13 @@ impl BearerTokenAuthenticator {
             Err(HandlerErrorKind::InvalidAuth)?
         }
 
-        let user_id = self.users
+        let user_id = self
+            .users
             .get(parts[1])
             .ok_or_else(|| HandlerErrorKind::InvalidAuth)?;
         // Authenticated
-        let group = self.groups
+        let group = self
+            .groups
             .get(user_id)
             .ok_or_else(|| HandlerErrorKind::InternalError)?;
         Ok((user_id.to_string(), *group))
