@@ -29,7 +29,7 @@ pub struct Broadcaster {
 
 impl Broadcaster {
     pub fn new(id: String) -> Broadcaster {
-        Broadcaster { id: id }
+        Broadcaster { id }
     }
 
     /// Broadcast a new version
@@ -67,7 +67,7 @@ pub struct Reader {
 
 impl Reader {
     pub fn new(id: String) -> Reader {
-        Reader { id: id }
+        Reader { id }
     }
 
     pub fn read_broadcasts(

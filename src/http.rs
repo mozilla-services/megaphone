@@ -1,26 +1,28 @@
-use std::convert::Into;
 use std::error::Error;
 use std::io::Read;
 
-use diesel::dsl::sql;
-use diesel::result::Error as DieselError;
-use diesel::sql_types::Integer;
-use diesel::{QueryDsl, RunQueryDsl};
+use diesel::{dsl::sql, result::Error as DieselError, sql_types::Integer, QueryDsl, RunQueryDsl};
 use failure::ResultExt;
 use regex::Regex;
-use rocket::data::{self, FromData};
-use rocket::http::Status;
-use rocket::outcome::IntoOutcome;
-use rocket::request::{self, FromRequest};
-use rocket::response::{content, status};
-use rocket::Outcome::{Failure, Success};
-use rocket::{self, Data, Request, Rocket};
+use rocket::{
+    self,
+    data::{self, FromData},
+    http::Status,
+    outcome::IntoOutcome,
+    request::{self, FromRequest},
+    response::{content, status},
+    Data,
+    Outcome::{Failure, Success},
+    Request, Rocket,
+};
 use rocket_contrib::Json;
 
 use auth;
-use db;
-use db::models::{Broadcaster, Reader};
-use db::schema::broadcastsv1;
+use db::{
+    self,
+    models::{Broadcaster, Reader},
+    schema::broadcastsv1,
+};
 use error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
 use logging::{self, RequestLogger};
 
