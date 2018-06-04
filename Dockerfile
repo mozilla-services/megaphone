@@ -8,7 +8,7 @@ ARG RUST_TOOLCHAIN=nightly-2018-05-05
 
 RUN \
     apt-get -qq update && \
-    apt-get -qq install -y default-libmysqlclient-dev && \
+    apt-get -qq install -y default-libmysqlclient-dev libssl-dev && \
     \
     rustup default ${RUST_TOOLCHAIN} && \
     cargo --version && \
@@ -25,7 +25,7 @@ RUN \
     useradd --uid 10001 --gid 10001 --home /app --create-home app && \
     \
     apt-get -qq update && \
-    apt-get -qq install -y default-libmysqlclient-dev && \
+    apt-get -qq install -y default-libmysqlclient-dev libssl-dev && \
     rm -rf /var/lib/apt/lists
 
 COPY --from=builder /app/bin /app/bin
