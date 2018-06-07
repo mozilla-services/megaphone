@@ -10,6 +10,7 @@ extern crate failure;
 #[macro_use]
 extern crate lazy_static;
 extern crate mozsvc_common;
+extern crate regex;
 extern crate rocket;
 #[macro_use]
 extern crate rocket_contrib;

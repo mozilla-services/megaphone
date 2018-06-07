@@ -7,6 +7,7 @@ use diesel::result::Error as DieselError;
 use diesel::sql_types::Integer;
 use diesel::{QueryDsl, RunQueryDsl};
 use failure::ResultExt;
+use regex::Regex;
 use rocket::data::{self, FromData};
 use rocket::http::Status;
 use rocket::outcome::IntoOutcome;
@@ -22,6 +23,10 @@ use db::models::{Broadcaster, Reader};
 use db::schema::broadcastsv1;
 use error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
 use logging::{self, RequestLogger};
+
+lazy_static! {
+    static ref URLSAFE_B64_RE: Regex = Regex::new(r"^[A-Za-z0-9\-_]+$").unwrap();
+}
 
 impl<'a, 'r> FromRequest<'a, 'r> for Broadcaster {
     type Error = HandlerError;
@@ -41,20 +46,19 @@ impl FromData for VersionInput {
     type Error = HandlerError;
 
     fn from_data(_: &Request, data: Data) -> data::Outcome<Self, HandlerError> {
-        let mut string = String::new();
+        let mut value = String::new();
         data.open()
-            .read_to_string(&mut string)
+            .read_to_string(&mut value)
             .context(HandlerErrorKind::MissingVersionDataError)
             .map_err(Into::into)
             .into_outcome(VALIDATION_FAILED)?;
-        if string.is_empty() {
+        if value.is_empty() || value.len() > 200 || !value.is_ascii() {
             return Failure((
                 VALIDATION_FAILED,
                 HandlerErrorKind::InvalidVersionDataError.into(),
             ));
         }
-        // TODO Validate the version info
-        Success(VersionInput { value: string })
+        Success(VersionInput { value })
     }
 }
 
@@ -78,6 +82,13 @@ fn broadcast(
     bchannel_id: String,
     version: HandlerResult<VersionInput>,
 ) -> HandlerResult<status::Custom<Json>> {
+    if broadcaster_id.len() > 64 || !URLSAFE_B64_RE.is_match(&broadcaster_id) {
+        Err(HandlerErrorKind::InvalidBroadcasterId)?
+    }
+    if bchannel_id.len() > 128 || !URLSAFE_B64_RE.is_match(&bchannel_id) {
+        Err(HandlerErrorKind::InvalidBchannelId)?
+    }
+
     let version = version?.value;
     let created = broadcaster?.broadcast_new_version(&conn, &bchannel_id, &version)?;
     let status = if created { Status::Created } else { Status::Ok };
@@ -304,6 +315,44 @@ mod test {
         assert_eq!(response.status(), Status::Forbidden);
         let result = json_body(&mut response);
         assert_eq!(result["code"], 403);
+    }
+
+    #[test]
+    fn test_put_bad_ids() {
+        let client = rocket_client();
+        let mut response = client
+            .put("/v1/broadcasts/foo+bar/baz")
+            .header(Auth::Baz)
+            .body("v1")
+            .dispatch();
+        assert_eq!(response.status(), Status::BadRequest);
+        let result = json_body(&mut response);
+        assert_eq!(result["code"], 400);
+        assert!(result["error"].as_str().unwrap().contains("broadcasterID"));
+
+        let mut response = client
+            .put("/v1/broadcasts/foo/bar+baz")
+            .header(Auth::Baz)
+            .body("v1")
+            .dispatch();
+        assert_eq!(response.status(), Status::BadRequest);
+        let result = json_body(&mut response);
+        assert_eq!(result["code"], 400);
+        assert!(result["error"].as_str().unwrap().contains("bchannelID"));
+    }
+
+    #[test]
+    fn test_put_bad_version() {
+        let client = rocket_client();
+        let mut response = client
+            .put("/v1/broadcasts/foo/bar")
+            .header(Auth::Baz)
+            .body("v1".repeat(101))
+            .dispatch();
+        assert_eq!(response.status(), Status::BadRequest);
+        let result = json_body(&mut response);
+        assert_eq!(result["code"], 400);
+        assert!(result["error"].as_str().unwrap().contains("Version"));
     }
 
     #[test]

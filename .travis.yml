@@ -3,7 +3,7 @@ sudo: false
 cache: cargo
 
 rust:
-  - nightly-2018-05-05
+  - nightly-2018-06-04
 env:
   global:
     # XXX: begin_test_transaction doesn't play nice over threaded tests
