@@ -284,7 +284,7 @@ mod test {
         assert_eq!(response.status(), Status::NotFound);
         assert_eq!(
             json_body(&mut response),
-            json!({"code": 404, "error": "Not Found"})
+            json!({"code": 404, "errno": 123, "error": "Not Found"})
         );
     }
 

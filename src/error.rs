@@ -32,6 +32,17 @@ pub struct HandlerError {
 
 #[derive(Clone, Eq, PartialEq, Debug, Fail)]
 pub enum HandlerErrorKind {
+    /// 400 Bad Requests
+    #[fail(display = "Invalid broadcasterID (must be URL safe base64, <= 64 characters)")]
+    InvalidBroadcasterId,
+    #[fail(display = "Invalid bchannelID (must be URL safe base64, <= 128 characters)")]
+    InvalidBchannelId,
+
+    #[fail(display = "Version information not included in body of update")]
+    MissingVersionDataError,
+    #[fail(display = "Invalid Version (must be ASCII, <= 200 characters)")]
+    InvalidVersionDataError,
+
     /// 401 "Unauthorized" (unauthenticated)
     #[fail(display = "Missing authorization header")]
     MissingAuth,
@@ -46,34 +57,48 @@ pub enum HandlerErrorKind {
     #[fail(display = "Not Found")]
     NotFound,
 
-    #[fail(display = "A database error occurred")]
-    DBError,
-
-    #[fail(display = "Invalid broadcasterID (must be URL safe base64, <= 64 characters)")]
-    InvalidBroadcasterId,
-    #[fail(display = "Invalid bchannelID (must be URL safe base64, <= 128 characters)")]
-    InvalidBchannelId,
-
-    #[fail(display = "Version information not included in body of update")]
-    MissingVersionDataError,
-    #[fail(display = "Invalid Version (must be ASCII, <= 200 characters)")]
-    InvalidVersionDataError,
-
+    /// 500 Internal Server Errors
     #[fail(display = "Unexpected rocket error: {:?}", _0)]
     RocketError(rocket::Error), // rocket::Error isn't a std Error (so no #[cause])
     #[fail(display = "Unexpected megaphone error")]
     InternalError,
+
+    /// 503 Service Unavailable
+    #[fail(display = "A database error occurred")]
+    DBError,
 }
 
 impl HandlerErrorKind {
     /// Return a rocket response Status to be rendered for an error
     pub fn http_status(&self) -> Status {
-        match *self {
+        match self {
             HandlerErrorKind::MissingAuth | HandlerErrorKind::InvalidAuth => Status::Unauthorized,
             HandlerErrorKind::Unauthorized => Status::Forbidden,
             HandlerErrorKind::NotFound => Status::NotFound,
+            HandlerErrorKind::RocketError(_) | HandlerErrorKind::InternalError => {
+                Status::InternalServerError
+            }
             HandlerErrorKind::DBError => Status::ServiceUnavailable,
             _ => Status::BadRequest,
+        }
+    }
+
+    /// Return a unique errno code
+    pub fn errno(&self) -> i32 {
+        match self {
+            HandlerErrorKind::InvalidBroadcasterId => 100,
+            HandlerErrorKind::InvalidBchannelId => 101,
+            HandlerErrorKind::MissingVersionDataError => 102,
+            HandlerErrorKind::InvalidVersionDataError => 103,
+
+            HandlerErrorKind::MissingAuth => 120,
+            HandlerErrorKind::InvalidAuth => 121,
+            HandlerErrorKind::Unauthorized => 122,
+            HandlerErrorKind::NotFound => 123,
+
+            HandlerErrorKind::RocketError(_) => 200,
+            HandlerErrorKind::InternalError => 201,
+            HandlerErrorKind::DBError => 202,
         }
     }
 }
@@ -121,6 +146,7 @@ impl<'r> Responder<'r> for HandlerError {
 
         let json = Json(json!({
             "code": status.code,
+            "errno": self.kind().errno(),
             "error": format!("{}", self)
         }));
         let mut builder = Response::build_from(json.respond_to(request)?);
