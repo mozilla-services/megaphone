@@ -7,8 +7,11 @@ use std::ops::Deref;
 use failure::{self, err_msg};
 use mozsvc_common::{aws::get_ec2_instance_id, get_hostname};
 use rocket::{
-    config::ConfigError, http::Status, outcome::IntoOutcome, request::{self, FromRequest}, Config,
-    Request, State,
+    config::ConfigError,
+    http::Status,
+    outcome::IntoOutcome,
+    request::{self, FromRequest},
+    Config, Request, State,
 };
 use slog::{self, Drain, Record, Serializer, KV};
 use slog_async;
@@ -41,7 +44,7 @@ impl MozLogFields {
             remote: headers
                 .get_one("X-Forwarded-For")
                 .map(&str::to_owned)
-                .or(request.remote().map(|addr| addr.ip().to_string())),
+                .or_else(|| request.remote().map(|addr| addr.ip().to_string())),
         }
     }
 }

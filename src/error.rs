@@ -133,7 +133,7 @@ impl From<HandlerErrorKind> for HandlerError {
 
 impl From<Context<HandlerErrorKind>> for HandlerError {
     fn from(inner: Context<HandlerErrorKind>) -> HandlerError {
-        HandlerError { inner: inner }
+        HandlerError { inner }
     }
 }
 
@@ -141,12 +141,18 @@ impl From<Context<HandlerErrorKind>> for HandlerError {
 impl<'r> Responder<'r> for HandlerError {
     fn respond_to(self, request: &Request) -> response::Result<'r> {
         let status = self.kind().http_status();
+        let errno = self.kind().errno();
         let log = RequestLogger::with_request(request).map_err(|_| Status::InternalServerError)?;
-        slog_debug!(log, "{}", &self; "code" => status.code);
+        match status {
+            Status::Unauthorized | Status::Forbidden => {
+                slog_warn!(log, "{}", &self; "code" => status.code, "errno" => errno)
+            }
+            _ => slog_debug!(log, "{}", &self; "code" => status.code, "errno" => errno),
+        }
 
         let json = Json(json!({
             "code": status.code,
-            "errno": self.kind().errno(),
+            "errno": errno,
             "error": format!("{}", self)
         }));
         let mut builder = Response::build_from(json.respond_to(request)?);

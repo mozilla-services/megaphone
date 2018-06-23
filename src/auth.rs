@@ -27,8 +27,8 @@ enum Group {
 
 impl Group {
     /// Entry name in rocket Config where tokens are loaded from
-    fn config_name(&self) -> &'static str {
-        match *self {
+    fn config_name(self) -> &'static str {
+        match self {
             Group::Broadcaster => "broadcaster_auth",
             Group::Reader => "reader_auth",
         }
@@ -70,11 +70,9 @@ impl BearerTokenAuthenticator {
             }
             self.groups.insert(user_id.to_string(), group);
 
-            let tokens = tokens_val.as_array().ok_or(format_err!(
-                "Invalid {} token array for: {:?}",
-                name,
-                user_id
-            ))?;
+            let tokens = tokens_val
+                .as_array()
+                .ok_or_else(|| format_err!("Invalid {} token array for: {:?}", name, user_id))?;
             self.load_tokens(user_id, group, tokens)?;
         }
         Ok(())
@@ -83,10 +81,9 @@ impl BearerTokenAuthenticator {
     fn load_tokens(&mut self, user_id: &UserId, group: Group, tokens: &[Value]) -> Result<()> {
         let name = group.config_name();
         for element in tokens {
-            let token =
-                element
-                    .as_str()
-                    .ok_or(format_err!("Invalid {} token for: {:?}", name, user_id))?;
+            let token = element
+                .as_str()
+                .ok_or_else(|| format_err!("Invalid {} token for: {:?}", name, user_id))?;
             if let Some(dupe) = self.users.get(token) {
                 Err(format_err!(
                     "Invalid {} token for: {:?} dupe in: {:?} ({:?})",
