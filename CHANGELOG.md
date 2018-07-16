@@ -1,3 +1,21 @@
+<a name="0.1.4"></a>
+## 0.1.4 (2018-06-27)
+
+
+#### Chore
+
+*   include /app/version.json per dockerflow ([d5978e3c](https://github.com/mozilla-services/megaphone/commit/d5978e3c9a475208965537c21d88681277876890))
+
+#### Features
+
+*   warn log for ACL related errors ([109476a5](https://github.com/mozilla-services/megaphone/commit/109476a5e6313de761a593b5e4dcbd18a93f34c4), closes [#48](https://github.com/mozilla-services/megaphone/issues/48))
+*   render a unique errno code per error ([57025884](https://github.com/mozilla-services/megaphone/commit/57025884993b16dfdf779d414ccda9afa353dc78), closes [#46](https://github.com/mozilla-services/megaphone/issues/46))
+*   validate the PUT input ([6fbf572d](https://github.com/mozilla-services/megaphone/commit/6fbf572d685a32c7b60fbb0b7531422fbbd0781d), closes [#24](https://github.com/mozilla-services/megaphone/issues/24))
+*   add a docker compose setup ([2c1aa8f1](https://github.com/mozilla-services/megaphone/commit/2c1aa8f1441d8b66eb23c8370c18806738fdc674), closes [#43](https://github.com/mozilla-services/megaphone/issues/43))
+*   create a logging setup via slog/slog-mozlog-json ([c7353f7e](https://github.com/mozilla-services/megaphone/commit/c7353f7e167a34aa7617cc23ac9489f395d77ff4), closes [#9](https://github.com/mozilla-services/megaphone/issues/9))
+
+
+
 <a name="0.1.3"></a>
 ## 0.1.3 (2018-05-17)
 
