@@ -36,5 +36,6 @@ USER app
 
 # override rocket's dev env defaulting to localhost
 ENV ROCKET_ADDRESS 0.0.0.0
+ENV ROCKET_LOG off
 
 CMD ["/app/bin/megaphone"]

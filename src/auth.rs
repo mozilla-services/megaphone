@@ -164,13 +164,20 @@ mod test {
     #[test]
     fn test_basic() {
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", toml!{foo = ["bar"] baz = ["quux"]})
+            .extra(
+                "broadcaster_auth",
+                toml!{foo = ["bar"] baz = ["quux", "wobble"]},
+            )
             .extra("reader_auth", toml!{otto = ["push"]})
             .unwrap();
         let authenicator = BearerTokenAuthenticator::from_config(&config).unwrap();
 
         assert_eq!(
             authenicator.authenticated_user("Bearer quux").unwrap(),
+            ("baz".to_string(), Group::Broadcaster)
+        );
+        assert_eq!(
+            authenicator.authenticated_user("Bearer wobble").unwrap(),
             ("baz".to_string(), Group::Broadcaster)
         );
         assert_eq!(

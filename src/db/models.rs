@@ -44,7 +44,7 @@ impl Broadcaster {
     /// Ok(false) if this Broadcast had an existing version that was
     /// successfully modified to the new version.
     pub fn broadcast_new_version(
-        self,
+        &self,
         conn: &MysqlConnection,
         bchannel_id: &str,
         version: &str,
