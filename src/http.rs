@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::env;
 use std::io::Read;
 
 use diesel::{dsl::sql, result::Error as DieselError, sql_types::Integer, QueryDsl, RunQueryDsl};
@@ -6,6 +6,7 @@ use failure::ResultExt;
 use regex::Regex;
 use rocket::{
     self,
+    config::RocketConfig,
     data::{self, FromData},
     http::Status,
     outcome::IntoOutcome,
@@ -126,14 +127,17 @@ fn version() -> content::Json<&'static str> {
 }
 
 #[get("/__heartbeat__")]
-fn heartbeat(conn: db::Conn) -> status::Custom<Json> {
+fn heartbeat(conn: db::Conn, log: RequestLogger) -> status::Custom<Json> {
     let (status, db_msg) = match broadcastsv1::table
         .select(sql::<Integer>("1"))
         .get_result::<i32>(&*conn)
     {
-        Ok(_) | Err(DieselError::NotFound) => (Status::Ok, "ok".to_string()),
-        // XXX: sanitize db_msg
-        Err(e) => (Status::ServiceUnavailable, e.description().to_string()),
+        Ok(_) | Err(DieselError::NotFound) => (Status::Ok, "ok"),
+        Err(e) => {
+            let status = Status::ServiceUnavailable;
+            slog_error!(log, "Database heartbeat failed: {}", e; "code" => status.code);
+            (status, "error")
+        }
     };
 
     status::Custom(
@@ -155,7 +159,27 @@ fn not_found() -> HandlerResult<()> {
 }
 
 pub fn rocket() -> Result<Rocket> {
-    setup_rocket(rocket::ignite())
+    // XXX: support ROCKET_LOG=off (coming in rocket 0.4)
+    let (lk, lv) = env::vars()
+        .find(|kv| kv.0.to_lowercase() == "rocket_log")
+        .unwrap_or_else(|| ("rocket_log".to_owned(), "normal".to_owned()));
+    let log_off = lv.to_lowercase() == "off";
+    if log_off {
+        // rocket 0.3 doesn't understand "off" yet, so remove it
+        env::remove_var(lk);
+    }
+
+    // RocketConfig::init basically
+    let rconfig = RocketConfig::read().unwrap_or_else(|_| {
+        let path = env::current_dir()
+            .unwrap()
+            .join(&format!(".{}.{}", "default", "Rocket.toml"));
+        RocketConfig::active_default(&path).unwrap()
+    });
+
+    // rocket::ignite basically
+    let config = rconfig.active().clone();
+    setup_rocket(rocket::custom(config, !log_off))
 }
 
 fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
