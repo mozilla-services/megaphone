@@ -1,3 +1,13 @@
+<a name="0.1.5"></a>
+## 0.1.5 (2018-08-21)
+
+
+#### Features
+
+*   hacky support of ROCKET_LOG=off ([584f758b](https://github.com/mozilla-services/megaphone/commit/584f758bfe9ca3aec83d39848b3d441baa22b092), closes [#54](https://github.com/mozilla-services/megaphone/issues/54))
+
+
+
 <a name="0.1.4"></a>
 ## 0.1.4 (2018-06-27)
 
