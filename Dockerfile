@@ -4,13 +4,10 @@ FROM rust:1.25.0-stretch as builder
 ADD . /app
 WORKDIR /app
 
-ARG RUST_TOOLCHAIN=nightly-2018-06-20
-
 RUN \
     apt-get -qq update && \
     apt-get -qq install -y default-libmysqlclient-dev libssl-dev && \
     \
-    rustup default ${RUST_TOOLCHAIN} && \
     cargo --version && \
     rustc --version && \
     cargo install --root /app
