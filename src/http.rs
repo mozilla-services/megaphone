@@ -1,7 +1,7 @@
 use std::env;
 use std::io::Read;
 
-use diesel::{dsl::sql, result::Error as DieselError, sql_types::Integer, QueryDsl, RunQueryDsl};
+use diesel::{dsl::sql, sql_types::Integer, OptionalExtension, QueryDsl, RunQueryDsl};
 use failure::ResultExt;
 use regex::Regex;
 use rocket::{
@@ -78,13 +78,15 @@ impl<'a, 'r> FromRequest<'a, 'r> for Reader {
 /// Set a version for a broadcaster / bchannel
 #[put("/v1/broadcasts/<broadcaster_id>/<bchannel_id>", data = "<version>")]
 fn broadcast(
-    conn: db::Conn,
+    conn: HandlerResult<db::Conn>,
     log: RequestLogger,
     broadcaster: HandlerResult<Broadcaster>,
     broadcaster_id: String,
     bchannel_id: String,
     version: HandlerResult<VersionInput>,
 ) -> HandlerResult<status::Custom<Json>> {
+    let conn = conn?;
+
     if broadcaster_id.len() > 64 || !URLSAFE_B64_RE.is_match(&broadcaster_id) {
         Err(HandlerErrorKind::InvalidBroadcasterId)?
     }
@@ -113,7 +115,11 @@ fn broadcast(
 
 /// Dump the current version table
 #[get("/v1/broadcasts")]
-fn get_broadcasts(conn: db::Conn, reader: HandlerResult<Reader>) -> HandlerResult<Json> {
+fn get_broadcasts(
+    conn: HandlerResult<db::Conn>,
+    reader: HandlerResult<Reader>,
+) -> HandlerResult<Json> {
+    let conn = conn?;
     let broadcasts = reader?.read_broadcasts(&conn)?;
     Ok(Json(json!({
         "code": 200,
@@ -127,25 +133,31 @@ fn version() -> content::Json<&'static str> {
 }
 
 #[get("/__heartbeat__")]
-fn heartbeat(conn: db::Conn, log: RequestLogger) -> status::Custom<Json> {
-    let (status, db_msg) = match broadcastsv1::table
-        .select(sql::<Integer>("1"))
-        .get_result::<i32>(&*conn)
-    {
-        Ok(_) | Err(DieselError::NotFound) => (Status::Ok, "ok"),
+fn heartbeat(conn: HandlerResult<db::Conn>, log: RequestLogger) -> status::Custom<Json> {
+    let result = conn.and_then(|conn| {
+        Ok(broadcastsv1::table
+            .select(sql::<Integer>("1"))
+            .get_result::<i32>(&*conn)
+            .optional()
+            .context(HandlerErrorKind::DBError)?)
+    });
+
+    let status = match result {
+        Ok(_) => Status::Ok,
         Err(e) => {
             let status = Status::ServiceUnavailable;
             slog_error!(log, "Database heartbeat failed: {}", e; "code" => status.code);
-            (status, "error")
+            status
         }
     };
 
+    let msg = if status == Status::Ok { "ok" } else { "error" };
     status::Custom(
         status,
         Json(json!({
-            "status": if status == Status::Ok { "ok" } else { "error" },
+            "status": msg,
             "code": status.code,
-            "database": db_msg
+            "database": msg,
         })),
     )
 }

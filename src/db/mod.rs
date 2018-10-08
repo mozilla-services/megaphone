@@ -9,11 +9,10 @@ use diesel::r2d2::{ConnectionManager, CustomizeConnection, Error, Pool, PooledCo
 use diesel::Connection;
 use failure::err_msg;
 
-use rocket::http::Status;
 use rocket::request::{self, FromRequest};
 use rocket::{Config, Outcome, Request, State};
 
-use error::Result;
+use error::{HandlerError, HandlerErrorKind, Result, VALIDATION_FAILED};
 
 pub type MysqlPool = Pool<ConnectionManager<MysqlConnection>>;
 
@@ -63,13 +62,15 @@ impl Deref for Conn {
 }
 
 impl<'a, 'r> FromRequest<'a, 'r> for Conn {
-    type Error = ();
+    type Error = HandlerError;
 
-    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, ()> {
-        let pool = request.guard::<State<MysqlPool>>()?;
+    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, HandlerError> {
+        let pool = request
+            .guard::<State<MysqlPool>>()
+            .map_failure(|_| (VALIDATION_FAILED, HandlerErrorKind::InternalError.into()))?;
         match pool.get() {
             Ok(conn) => Outcome::Success(Conn(conn)),
-            Err(_) => Outcome::Failure((Status::ServiceUnavailable, ())),
+            Err(_) => Outcome::Failure((VALIDATION_FAILED, HandlerErrorKind::DBError.into())),
         }
     }
 }
