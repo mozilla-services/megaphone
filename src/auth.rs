@@ -134,8 +134,9 @@ pub fn authorized_broadcaster(request: &Request) -> HandlerResult<Broadcaster> {
 
     // param should be guaranteed on the path when we're called
     let for_broadcast_id = request
-        .get_param::<String>(0)
-        .map_err(HandlerErrorKind::RocketError)?;
+        .get_param::<String>(2)
+        .ok_or(HandlerErrorKind::InternalError)?
+        .map_err(|_| HandlerErrorKind::InternalError)?;
 
     if group == Group::Broadcaster && id == for_broadcast_id {
         // Authorized
