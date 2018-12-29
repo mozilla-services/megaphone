@@ -97,7 +97,7 @@ fn broadcast(
     let version = version?.value;
     let created = broadcaster?.broadcast_new_version(&conn, &bchannel_id, &version)?;
     let status = if created { Status::Created } else { Status::Ok };
-    slog_info!(
+    info!(
         log,
         "Broadcast: {}/{} new version: {}",
         broadcaster_id,
@@ -146,7 +146,7 @@ fn heartbeat(conn: HandlerResult<db::Conn>, log: RequestLogger) -> status::Custo
         Ok(_) => Status::Ok,
         Err(e) => {
             let status = Status::ServiceUnavailable;
-            slog_error!(log, "Database heartbeat failed: {}", e; "code" => status.code);
+            error!(log, "Database heartbeat failed: {}", e; "code" => status.code);
             status
         }
     };

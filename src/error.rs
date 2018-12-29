@@ -139,9 +139,9 @@ impl<'r> Responder<'r> for HandlerError {
         let log = RequestLogger::with_request(request).map_err(|_| Status::InternalServerError)?;
         match status {
             Status::Unauthorized | Status::Forbidden => {
-                slog_warn!(log, "{}", &self; "code" => status.code, "errno" => errno)
+                warn!(log, "{}", &self; "code" => status.code, "errno" => errno)
             }
-            _ => slog_debug!(log, "{}", &self; "code" => status.code, "errno" => errno),
+            _ => debug!(log, "{}", &self; "code" => status.code, "errno" => errno),
         }
 
         let json = json!({
