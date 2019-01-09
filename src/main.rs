@@ -1,5 +1,4 @@
-#![feature(plugin)]
-#![plugin(rocket_codegen)]
+#![feature(proc_macro_hygiene, decl_macro)]
 
 #[macro_use]
 extern crate diesel;
@@ -11,17 +10,13 @@ extern crate failure;
 extern crate lazy_static;
 extern crate mozsvc_common;
 extern crate regex;
+#[macro_use]
 extern crate rocket;
 #[macro_use]
 extern crate rocket_contrib;
 extern crate serde;
 extern crate serde_json;
-// prefer slog_<level> names to avoid conflicting w/ rocket's error!. rocket
-// 0.4 will rename it to catcher
-#[macro_use(
-    slog_b, slog_debug, slog_error, slog_log, slog_kv, slog_info, slog_o, slog_record,
-    slog_record_static, slog_warn
-)]
+#[macro_use]
 extern crate slog;
 extern crate slog_async;
 extern crate slog_mozlog_json;

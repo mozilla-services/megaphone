@@ -13,7 +13,6 @@ use failure::{Backtrace, Context, Error, Fail};
 use rocket::http::{Header, Status};
 use rocket::response::{Responder, Response};
 use rocket::{self, response, Request, State};
-use rocket_contrib::Json;
 
 use logging::RequestLogger;
 
@@ -58,8 +57,6 @@ pub enum HandlerErrorKind {
     NotFound,
 
     /// 500 Internal Server Errors
-    #[fail(display = "Unexpected rocket error: {:?}", _0)]
-    RocketError(rocket::Error), // rocket::Error isn't a std Error (so no #[cause])
     #[fail(display = "Unexpected megaphone error")]
     InternalError,
 
@@ -75,9 +72,7 @@ impl HandlerErrorKind {
             HandlerErrorKind::MissingAuth | HandlerErrorKind::InvalidAuth => Status::Unauthorized,
             HandlerErrorKind::Unauthorized => Status::Forbidden,
             HandlerErrorKind::NotFound => Status::NotFound,
-            HandlerErrorKind::RocketError(_) | HandlerErrorKind::InternalError => {
-                Status::InternalServerError
-            }
+            HandlerErrorKind::InternalError => Status::InternalServerError,
             HandlerErrorKind::DBError => Status::ServiceUnavailable,
             _ => Status::BadRequest,
         }
@@ -96,7 +91,6 @@ impl HandlerErrorKind {
             HandlerErrorKind::Unauthorized => 122,
             HandlerErrorKind::NotFound => 123,
 
-            HandlerErrorKind::RocketError(_) => 200,
             HandlerErrorKind::InternalError => 201,
             HandlerErrorKind::DBError => 202,
         }
@@ -145,16 +139,16 @@ impl<'r> Responder<'r> for HandlerError {
         let log = RequestLogger::with_request(request).map_err(|_| Status::InternalServerError)?;
         match status {
             Status::Unauthorized | Status::Forbidden => {
-                slog_warn!(log, "{}", &self; "code" => status.code, "errno" => errno)
+                warn!(log, "{}", &self; "code" => status.code, "errno" => errno)
             }
-            _ => slog_debug!(log, "{}", &self; "code" => status.code, "errno" => errno),
+            _ => debug!(log, "{}", &self; "code" => status.code, "errno" => errno),
         }
 
-        let json = Json(json!({
+        let json = json!({
             "code": status.code,
             "errno": errno,
             "error": format!("{}", self)
-        }));
+        });
         let mut builder = Response::build_from(json.respond_to(request)?);
         if status == Status::Unauthorized {
             let environment = request

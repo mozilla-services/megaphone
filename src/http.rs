@@ -7,7 +7,7 @@ use regex::Regex;
 use rocket::{
     self,
     config::RocketConfig,
-    data::{self, FromData},
+    data::{self, FromDataSimple},
     http::Status,
     outcome::IntoOutcome,
     request::{self, FromRequest},
@@ -16,7 +16,7 @@ use rocket::{
     Outcome::{Failure, Success},
     Request, Rocket,
 };
-use rocket_contrib::Json;
+use rocket_contrib::json::JsonValue;
 
 use auth;
 use db::{
@@ -45,7 +45,7 @@ struct VersionInput {
     value: String,
 }
 
-impl FromData for VersionInput {
+impl FromDataSimple for VersionInput {
     type Error = HandlerError;
 
     fn from_data(_: &Request, data: Data) -> data::Outcome<Self, HandlerError> {
@@ -84,7 +84,7 @@ fn broadcast(
     broadcaster_id: String,
     bchannel_id: String,
     version: HandlerResult<VersionInput>,
-) -> HandlerResult<status::Custom<Json>> {
+) -> HandlerResult<status::Custom<JsonValue>> {
     let conn = conn?;
 
     if broadcaster_id.len() > 64 || !URLSAFE_B64_RE.is_match(&broadcaster_id) {
@@ -97,7 +97,7 @@ fn broadcast(
     let version = version?.value;
     let created = broadcaster?.broadcast_new_version(&conn, &bchannel_id, &version)?;
     let status = if created { Status::Created } else { Status::Ok };
-    slog_info!(
+    info!(
         log,
         "Broadcast: {}/{} new version: {}",
         broadcaster_id,
@@ -107,9 +107,9 @@ fn broadcast(
     );
     Ok(status::Custom(
         status,
-        Json(json!({
+        json!({
             "code": status.code
-        })),
+        }),
     ))
 }
 
@@ -118,13 +118,13 @@ fn broadcast(
 fn get_broadcasts(
     conn: HandlerResult<db::Conn>,
     reader: HandlerResult<Reader>,
-) -> HandlerResult<Json> {
+) -> HandlerResult<JsonValue> {
     let conn = conn?;
     let broadcasts = reader?.read_broadcasts(&conn)?;
-    Ok(Json(json!({
+    Ok(json!({
         "code": 200,
         "broadcasts": broadcasts
-    })))
+    }))
 }
 
 #[get("/__version__")]
@@ -133,7 +133,7 @@ fn version() -> content::Json<&'static str> {
 }
 
 #[get("/__heartbeat__")]
-fn heartbeat(conn: HandlerResult<db::Conn>, log: RequestLogger) -> status::Custom<Json> {
+fn heartbeat(conn: HandlerResult<db::Conn>, log: RequestLogger) -> status::Custom<JsonValue> {
     let result = conn.and_then(|conn| {
         Ok(broadcastsv1::table
             .select(sql::<Integer>("1"))
@@ -146,7 +146,7 @@ fn heartbeat(conn: HandlerResult<db::Conn>, log: RequestLogger) -> status::Custo
         Ok(_) => Status::Ok,
         Err(e) => {
             let status = Status::ServiceUnavailable;
-            slog_error!(log, "Database heartbeat failed: {}", e; "code" => status.code);
+            error!(log, "Database heartbeat failed: {}", e; "code" => status.code);
             status
         }
     };
@@ -154,44 +154,34 @@ fn heartbeat(conn: HandlerResult<db::Conn>, log: RequestLogger) -> status::Custo
     let msg = if status == Status::Ok { "ok" } else { "error" };
     status::Custom(
         status,
-        Json(json!({
+        json!({
             "status": msg,
             "code": status.code,
             "database": msg,
-        })),
+        }),
     )
 }
 
 #[get("/__lbheartbeat__")]
 fn lbheartbeat() {}
 
-#[error(404)]
+#[catch(404)]
 fn not_found() -> HandlerResult<()> {
     Err(HandlerErrorKind::NotFound)?
 }
 
 pub fn rocket() -> Result<Rocket> {
-    // XXX: support ROCKET_LOG=off (coming in rocket 0.4)
-    let (lk, lv) = env::vars()
-        .find(|kv| kv.0.to_lowercase() == "rocket_log")
-        .unwrap_or_else(|| ("rocket_log".to_owned(), "normal".to_owned()));
-    let log_off = lv.to_lowercase() == "off";
-    if log_off {
-        // rocket 0.3 doesn't understand "off" yet, so remove it
-        env::remove_var(lk);
-    }
-
     // RocketConfig::init basically
     let rconfig = RocketConfig::read().unwrap_or_else(|_| {
         let path = env::current_dir()
             .unwrap()
             .join(&format!(".{}.{}", "default", "Rocket.toml"));
-        RocketConfig::active_default(&path).unwrap()
+        RocketConfig::active_default_from(Some(&path)).unwrap()
     });
 
     // rocket::ignite basically
     let config = rconfig.active().clone();
-    setup_rocket(rocket::custom(config, !log_off))
+    setup_rocket(rocket::custom(config))
 }
 
 fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
@@ -209,7 +199,7 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
             "/",
             routes![broadcast, get_broadcasts, version, heartbeat, lbheartbeat],
         )
-        .catch(errors![not_found]))
+        .register(catchers![not_found]))
 }
 
 #[cfg(test)]
@@ -270,7 +260,7 @@ mod test {
             .extra("reader_auth", toml!{reader = ["00000000deadbeef"]})
             .unwrap();
 
-        let rocket = setup_rocket(rocket::custom(config, true)).expect("rocket failed");
+        let rocket = setup_rocket(rocket::custom(config)).expect("rocket failed");
         Client::new(rocket).expect("rocket launch failed")
     }
 
@@ -288,14 +278,14 @@ mod test {
             .body("v0")
             .dispatch();
         assert_eq!(response.status(), Status::Created);
-        assert_eq!(json_body(&mut response), json!({"code": 201}));
+        assert_eq!(json_body(&mut response), *json!({"code": 201}));
         let mut response = client
             .put("/v1/broadcasts/foo/bar")
             .header(Auth::FooAlt)
             .body("v1")
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
-        assert_eq!(json_body(&mut response), json!({"code": 200}));
+        assert_eq!(json_body(&mut response), *json!({"code": 200}));
     }
 
     #[test]
@@ -322,7 +312,7 @@ mod test {
         assert_eq!(response.status(), Status::NotFound);
         assert_eq!(
             json_body(&mut response),
-            json!({"code": 404, "errno": 123, "error": "Not Found"})
+            *json!({"code": 404, "errno": 123, "error": "Not Found"})
         );
     }
 
@@ -435,7 +425,7 @@ mod test {
         assert_eq!(response.status(), Status::Ok);
         assert_eq!(
             json_body(&mut response),
-            json!({"code": 200, "broadcasts": {"baz/quux": "v0", "foo/bar": "v1"}})
+            *json!({"code": 200, "broadcasts": {"baz/quux": "v0", "foo/bar": "v1"}})
         );
     }
 
