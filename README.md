@@ -61,7 +61,7 @@ Megaphone is normally called via a HTTP interface using Authorized calls. Respon
 
 ## Authorization
 
-All calls to Megaphone (minus the Dockerflow Status Checks) require authorization. Authorization is specified by the `Authorization` header via Bearer tokens specified in the application's configurtion.
+All calls to Megaphone (minus the Dockerflow Status Checks) require authorization. Authorization is specified by the `Authorization` header via Bearer tokens specified in the application's configuration.
 
 e.g.
 
