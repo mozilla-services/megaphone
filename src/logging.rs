@@ -13,8 +13,9 @@ use rocket::{
     request::{self, FromRequest},
     Config, Request, State,
 };
-use slog::{self, Drain, Record, Serializer, KV};
+use slog::{self, Drain};
 use slog_async;
+use slog_derive::KV;
 use slog_mozlog_json::MozLogJson;
 use slog_term;
 
@@ -26,7 +27,7 @@ lazy_static! {
     static ref MSG_TYPE: String = format!("{}:log", env!("CARGO_PKG_NAME"));
 }
 
-#[derive(Clone)]
+#[derive(Clone, KV)]
 struct MozLogFields {
     method: &'static str,
     path: String,
@@ -46,19 +47,6 @@ impl MozLogFields {
                 .map(&str::to_owned)
                 .or_else(|| request.remote().map(|addr| addr.ip().to_string())),
         }
-    }
-}
-
-impl KV for MozLogFields {
-    fn serialize(&self, _: &Record, serializer: &mut Serializer) -> slog::Result {
-        if let Some(ref agent) = self.agent {
-            serializer.emit_str("agent", agent)?;
-        }
-        if let Some(ref remote) = self.remote {
-            serializer.emit_str("remoteAddressChain", remote)?;
-        }
-        serializer.emit_str("path", &self.path)?;
-        serializer.emit_str("method", self.method)
     }
 }
 
