@@ -82,8 +82,8 @@ impl<'a, 'r> FromRequest<'a, 'r> for RequestLogger {
 pub fn init_logging(config: &Config) -> Result<RequestLogger> {
     let json_logging = match config.get_bool("json_logging") {
         Ok(json_logging) => json_logging,
-        Err(ConfigError::NotFound) => true,
-        Err(_) => Err(err_msg("Invalid ROCKET_JSON_LOGGING"))?,
+        Err(ConfigError::Missing(_)) => true,
+        Err(e) => Err(format_err!("Invalid ROCKET_JSON_LOGGING: {}", e))?,
     };
 
     let logger = if json_logging {
