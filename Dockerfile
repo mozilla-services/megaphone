@@ -1,5 +1,6 @@
 # Docker 17.05 or higher required for multi-stage builds
-FROM rust:1.25.0-stretch as builder
+# NOTE: this builds w/ a nightly version (specified in rust-toolchain)
+FROM rust:1.40.0-stretch as builder
 
 ADD . /app
 WORKDIR /app
