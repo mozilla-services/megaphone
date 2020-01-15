@@ -11,7 +11,7 @@ RUN \
     \
     cargo --version && \
     rustc --version && \
-    cargo install --root /app
+    cargo install --path . --locked --root /app
 
 
 FROM debian:stretch-slim
