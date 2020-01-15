@@ -8,11 +8,12 @@
 /// broadcasts.
 use std::collections::HashMap;
 
+use failure::format_err;
 use rocket::config::Value;
 use rocket::{Config, Request, State};
 
-use db::models::{Broadcaster, Reader};
-use error::{HandlerErrorKind, HandlerResult, Result};
+use crate::db::models::{Broadcaster, Reader};
+use crate::error::{HandlerErrorKind, HandlerResult, Result};
 
 /// Tokens mapped to an authorized id, from rocket's Config
 type AuthToken = String;
@@ -118,18 +119,18 @@ impl BearerTokenAuthenticator {
     }
 }
 
-fn authenticated_user(request: &Request) -> HandlerResult<(UserId, Group)> {
+fn authenticated_user(request: &Request<'_>) -> HandlerResult<(UserId, Group)> {
     let credentials = request
         .headers()
         .get_one("Authorization")
         .ok_or_else(|| HandlerErrorKind::MissingAuth)?;
     request
-        .guard::<State<BearerTokenAuthenticator>>()
+        .guard::<State<'_, BearerTokenAuthenticator>>()
         .success_or(HandlerErrorKind::InternalError)?
         .authenticated_user(credentials)
 }
 
-pub fn authorized_broadcaster(request: &Request) -> HandlerResult<Broadcaster> {
+pub fn authorized_broadcaster(request: &Request<'_>) -> HandlerResult<Broadcaster> {
     let (id, group) = authenticated_user(request)?;
 
     // param should be guaranteed on the path when we're called
@@ -146,7 +147,7 @@ pub fn authorized_broadcaster(request: &Request) -> HandlerResult<Broadcaster> {
     }
 }
 
-pub fn authorized_reader(request: &Request) -> HandlerResult<Reader> {
+pub fn authorized_reader(request: &Request<'_>) -> HandlerResult<Reader> {
     let (id, group) = authenticated_user(request)?;
     if group == Group::Reader {
         // Authorized
@@ -159,6 +160,7 @@ pub fn authorized_reader(request: &Request) -> HandlerResult<Reader> {
 #[cfg(test)]
 mod test {
     use rocket::config::{Config, Environment};
+    use toml::{toml, toml_internal};
 
     use super::{BearerTokenAuthenticator, Group};
 
@@ -167,9 +169,9 @@ mod test {
         let config = Config::build(Environment::Development)
             .extra(
                 "broadcaster_auth",
-                toml!{foo = ["bar"] baz = ["quux", "wobble"]},
+                toml! {foo = ["bar"] baz = ["quux", "wobble"]},
             )
-            .extra("reader_auth", toml!{otto = ["push"]})
+            .extra("reader_auth", toml! {otto = ["push"]})
             .unwrap();
         let authenicator = BearerTokenAuthenticator::from_config(&config).unwrap();
 
@@ -191,8 +193,8 @@ mod test {
     #[test]
     fn test_dupe_token() {
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", toml!{foo = ["bar"] baz = ["bar"]})
-            .extra("reader_auth", toml!{otto = ["push"]})
+            .extra("broadcaster_auth", toml! {foo = ["bar"] baz = ["bar"]})
+            .extra("reader_auth", toml! {otto = ["push"]})
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }
@@ -200,8 +202,8 @@ mod test {
     #[test]
     fn test_dupe_token2() {
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", toml!{foo = ["bar"]})
-            .extra("reader_auth", toml!{baz = ["quux", "bar"]})
+            .extra("broadcaster_auth", toml! {foo = ["bar"]})
+            .extra("reader_auth", toml! {baz = ["quux", "bar"]})
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }
@@ -209,8 +211,8 @@ mod test {
     #[test]
     fn test_dupe_user() {
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", toml!{foo = ["bar"]})
-            .extra("reader_auth", toml!{foo = ["baz"]})
+            .extra("broadcaster_auth", toml! {foo = ["bar"]})
+            .extra("reader_auth", toml! {foo = ["baz"]})
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }

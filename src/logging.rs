@@ -4,7 +4,8 @@
 use std::io;
 use std::ops::Deref;
 
-use failure::{self, err_msg};
+use failure::{self, err_msg, format_err};
+use lazy_static::lazy_static;
 use mozsvc_common::{aws::get_ec2_instance_id, get_hostname};
 use rocket::{
     config::ConfigError,
@@ -13,13 +14,13 @@ use rocket::{
     request::{self, FromRequest},
     Config, Request, State,
 };
-use slog::{self, Drain};
+use slog::{self, slog_o, Drain};
 use slog_async;
 use slog_derive::KV;
 use slog_mozlog_json::MozLogJson;
 use slog_term;
 
-use error::Result;
+use crate::error::Result;
 
 lazy_static! {
     static ref LOGGER_NAME: String =
@@ -36,7 +37,7 @@ struct MozLogFields {
 }
 
 impl MozLogFields {
-    pub fn from_request(request: &Request) -> MozLogFields {
+    pub fn from_request(request: &Request<'_>) -> MozLogFields {
         let headers = request.headers();
         MozLogFields {
             method: request.method().as_str(),
@@ -53,9 +54,9 @@ impl MozLogFields {
 pub struct RequestLogger(slog::Logger);
 
 impl RequestLogger {
-    pub fn with_request(request: &Request) -> Result<RequestLogger> {
+    pub fn with_request(request: &Request<'_>) -> Result<RequestLogger> {
         let logger = request
-            .guard::<State<RequestLogger>>()
+            .guard::<State<'_, RequestLogger>>()
             .success_or(err_msg("Internal error: No managed RequestLogger"))?;
         Ok(RequestLogger(
             logger.new(slog_o!(MozLogFields::from_request(request))),

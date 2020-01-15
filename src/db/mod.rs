@@ -12,7 +12,7 @@ use failure::err_msg;
 use rocket::request::{self, FromRequest};
 use rocket::{Config, Outcome, Request, State};
 
-use error::{HandlerError, HandlerErrorKind, Result, VALIDATION_FAILED};
+use crate::error::{HandlerError, HandlerErrorKind, Result, VALIDATION_FAILED};
 
 pub type MysqlPool = Pool<ConnectionManager<MysqlConnection>>;
 
@@ -66,7 +66,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for Conn {
 
     fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, HandlerError> {
         let pool = request
-            .guard::<State<MysqlPool>>()
+            .guard::<State<'_, MysqlPool>>()
             .map_failure(|_| (VALIDATION_FAILED, HandlerErrorKind::InternalError.into()))?;
         match pool.get() {
             Ok(conn) => Outcome::Success(Conn(conn)),

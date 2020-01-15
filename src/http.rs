@@ -3,6 +3,7 @@ use std::io::Read;
 
 use diesel::{dsl::sql, sql_types::Integer, OptionalExtension, QueryDsl, RunQueryDsl};
 use failure::ResultExt;
+use lazy_static::lazy_static;
 use regex::Regex;
 use rocket::{
     self,
@@ -16,16 +17,17 @@ use rocket::{
     Outcome::{Failure, Success},
     Request, Rocket,
 };
-use rocket_contrib::json::JsonValue;
+use rocket_contrib::{json, json::JsonValue};
+use slog::{error, info};
 
-use auth;
-use db::{
+use crate::auth;
+use crate::db::{
     self,
     models::{Broadcaster, Reader},
     schema::broadcastsv1,
 };
-use error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
-use logging::{self, RequestLogger};
+use crate::error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
+use crate::logging::{self, RequestLogger};
 
 lazy_static! {
     static ref URLSAFE_B64_RE: Regex = Regex::new(r"^[A-Za-z0-9\-_]+$").unwrap();
@@ -48,7 +50,7 @@ struct VersionInput {
 impl FromDataSimple for VersionInput {
     type Error = HandlerError;
 
-    fn from_data(_: &Request, data: Data) -> data::Outcome<Self, HandlerError> {
+    fn from_data(_: &Request<'_>, data: Data) -> data::Outcome<Self, HandlerError> {
         let mut value = String::new();
         data.open()
             .read_to_string(&mut value)
@@ -209,7 +211,9 @@ mod test {
     use rocket::http::{Header, Status};
     use rocket::local::Client;
     use rocket::response::Response;
+    use rocket_contrib::json;
     use serde_json::{self, Value};
+    use toml::{toml, toml_internal};
 
     use super::setup_rocket;
 
@@ -252,19 +256,19 @@ mod test {
             .extra("json_logging", false)
             .extra(
                 "broadcaster_auth",
-                toml!{
+                toml! {
                     foo = ["feedfacedeadbeef", "deadbeeffacefeed"]
                     baz = ["baada555deadbeef"]
                 },
             )
-            .extra("reader_auth", toml!{reader = ["00000000deadbeef"]})
+            .extra("reader_auth", toml! {reader = ["00000000deadbeef"]})
             .unwrap();
 
         let rocket = setup_rocket(rocket::custom(config)).expect("rocket failed");
         Client::new(rocket).expect("rocket launch failed")
     }
 
-    fn json_body(response: &mut Response) -> Value {
+    fn json_body(response: &mut Response<'_>) -> Value {
         assert!(response.content_type().map_or(false, |ct| ct.is_json()));
         serde_json::from_str(&response.body_string().unwrap()).unwrap()
     }
@@ -321,13 +325,11 @@ mod test {
         let client = rocket_client();
         let mut response = client.put("/v1/broadcasts/foo/bar").body("v1").dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
-        assert!(
-            response
-                .headers()
-                .get_one("WWW-Authenticate")
-                .unwrap()
-                .starts_with("Bearer ")
-        );
+        assert!(response
+            .headers()
+            .get_one("WWW-Authenticate")
+            .unwrap()
+            .starts_with("Bearer "));
         let result = json_body(&mut response);
         assert_eq!(result["code"], 401);
     }
@@ -388,13 +390,11 @@ mod test {
         let client = rocket_client();
         let mut response = client.get("/v1/broadcasts").dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
-        assert!(
-            response
-                .headers()
-                .get_one("WWW-Authenticate")
-                .unwrap()
-                .starts_with("Bearer ")
-        );
+        assert!(response
+            .headers()
+            .get_one("WWW-Authenticate")
+            .unwrap()
+            .starts_with("Bearer "));
         let result = json_body(&mut response);
         assert_eq!(result["code"], 401);
     }

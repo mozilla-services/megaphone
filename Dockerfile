@@ -1,5 +1,6 @@
 # Docker 17.05 or higher required for multi-stage builds
-FROM rust:1.25.0-stretch as builder
+# NOTE: this builds w/ a nightly version (specified in rust-toolchain)
+FROM rust:1.40.0-buster as builder
 
 ADD . /app
 WORKDIR /app
@@ -10,10 +11,10 @@ RUN \
     \
     cargo --version && \
     rustc --version && \
-    cargo install --root /app
+    cargo install --path . --locked --root /app
 
 
-FROM debian:stretch-slim
+FROM debian:buster-slim
 
 MAINTAINER <pjenvey@underboss.org>
 

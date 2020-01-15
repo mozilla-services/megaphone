@@ -8,7 +8,7 @@ use diesel::{sql_query, QueryDsl, RunQueryDsl};
 use failure::ResultExt;
 
 use super::schema::broadcastsv1;
-use error::{HandlerErrorKind, HandlerResult};
+use crate::error::{HandlerErrorKind, HandlerResult};
 
 #[derive(Debug, Queryable, Insertable)]
 #[table_name = "broadcastsv1"]
