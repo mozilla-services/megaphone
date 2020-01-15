@@ -13,6 +13,8 @@ use failure::{Backtrace, Context, Error, Fail};
 use rocket::http::{Header, Status};
 use rocket::response::{Responder, Response};
 use rocket::{self, response, Request, State};
+use rocket_contrib::json;
+use slog::{debug, warn};
 
 use crate::logging::RequestLogger;
 
@@ -114,7 +116,7 @@ impl Fail for HandlerError {
 }
 
 impl fmt::Display for HandlerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.inner, f)
     }
 }
@@ -133,7 +135,7 @@ impl From<Context<HandlerErrorKind>> for HandlerError {
 
 /// Generate HTTP error responses for HandlerErrors
 impl<'r> Responder<'r> for HandlerError {
-    fn respond_to(self, request: &Request) -> response::Result<'r> {
+    fn respond_to(self, request: &Request<'_>) -> response::Result<'r> {
         let status = self.kind().http_status();
         let errno = self.kind().errno();
         let log = RequestLogger::with_request(request).map_err(|_| Status::InternalServerError)?;
@@ -152,7 +154,7 @@ impl<'r> Responder<'r> for HandlerError {
         let mut builder = Response::build_from(json.respond_to(request)?);
         if status == Status::Unauthorized {
             let environment = request
-                .guard::<State<rocket::config::Environment>>()
+                .guard::<State<'_, rocket::config::Environment>>()
                 .succeeded()
                 .map(|state| *state)
                 .unwrap_or(rocket::config::Environment::Development);
