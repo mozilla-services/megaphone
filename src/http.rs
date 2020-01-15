@@ -256,12 +256,12 @@ mod test {
             .extra("json_logging", false)
             .extra(
                 "broadcaster_auth",
-                toml!{
+                toml! {
                     foo = ["feedfacedeadbeef", "deadbeeffacefeed"]
                     baz = ["baada555deadbeef"]
                 },
             )
-            .extra("reader_auth", toml!{reader = ["00000000deadbeef"]})
+            .extra("reader_auth", toml! {reader = ["00000000deadbeef"]})
             .unwrap();
 
         let rocket = setup_rocket(rocket::custom(config)).expect("rocket failed");
@@ -325,13 +325,11 @@ mod test {
         let client = rocket_client();
         let mut response = client.put("/v1/broadcasts/foo/bar").body("v1").dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
-        assert!(
-            response
-                .headers()
-                .get_one("WWW-Authenticate")
-                .unwrap()
-                .starts_with("Bearer ")
-        );
+        assert!(response
+            .headers()
+            .get_one("WWW-Authenticate")
+            .unwrap()
+            .starts_with("Bearer "));
         let result = json_body(&mut response);
         assert_eq!(result["code"], 401);
     }
@@ -392,13 +390,11 @@ mod test {
         let client = rocket_client();
         let mut response = client.get("/v1/broadcasts").dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
-        assert!(
-            response
-                .headers()
-                .get_one("WWW-Authenticate")
-                .unwrap()
-                .starts_with("Bearer ")
-        );
+        assert!(response
+            .headers()
+            .get_one("WWW-Authenticate")
+            .unwrap()
+            .starts_with("Bearer "));
         let result = json_body(&mut response);
         assert_eq!(result["code"], 401);
     }

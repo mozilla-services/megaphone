@@ -169,9 +169,9 @@ mod test {
         let config = Config::build(Environment::Development)
             .extra(
                 "broadcaster_auth",
-                toml!{foo = ["bar"] baz = ["quux", "wobble"]},
+                toml! {foo = ["bar"] baz = ["quux", "wobble"]},
             )
-            .extra("reader_auth", toml!{otto = ["push"]})
+            .extra("reader_auth", toml! {otto = ["push"]})
             .unwrap();
         let authenicator = BearerTokenAuthenticator::from_config(&config).unwrap();
 
@@ -193,8 +193,8 @@ mod test {
     #[test]
     fn test_dupe_token() {
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", toml!{foo = ["bar"] baz = ["bar"]})
-            .extra("reader_auth", toml!{otto = ["push"]})
+            .extra("broadcaster_auth", toml! {foo = ["bar"] baz = ["bar"]})
+            .extra("reader_auth", toml! {otto = ["push"]})
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }
@@ -202,8 +202,8 @@ mod test {
     #[test]
     fn test_dupe_token2() {
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", toml!{foo = ["bar"]})
-            .extra("reader_auth", toml!{baz = ["quux", "bar"]})
+            .extra("broadcaster_auth", toml! {foo = ["bar"]})
+            .extra("reader_auth", toml! {baz = ["quux", "bar"]})
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }
@@ -211,8 +211,8 @@ mod test {
     #[test]
     fn test_dupe_user() {
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", toml!{foo = ["bar"]})
-            .extra("reader_auth", toml!{foo = ["baz"]})
+            .extra("broadcaster_auth", toml! {foo = ["bar"]})
+            .extra("reader_auth", toml! {foo = ["baz"]})
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }
