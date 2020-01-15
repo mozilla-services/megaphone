@@ -19,7 +19,7 @@ use slog_derive::KV;
 use slog_mozlog_json::MozLogJson;
 use slog_term;
 
-use error::Result;
+use crate::error::Result;
 
 lazy_static! {
     static ref LOGGER_NAME: String =

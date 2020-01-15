@@ -12,7 +12,7 @@ use failure::err_msg;
 use rocket::request::{self, FromRequest};
 use rocket::{Config, Outcome, Request, State};
 
-use error::{HandlerError, HandlerErrorKind, Result, VALIDATION_FAILED};
+use crate::error::{HandlerError, HandlerErrorKind, Result, VALIDATION_FAILED};
 
 pub type MysqlPool = Pool<ConnectionManager<MysqlConnection>>;
 

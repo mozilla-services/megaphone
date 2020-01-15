@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use rocket::config::Value;
 use rocket::{Config, Request, State};
 
-use db::models::{Broadcaster, Reader};
-use error::{HandlerErrorKind, HandlerResult, Result};
+use crate::db::models::{Broadcaster, Reader};
+use crate::error::{HandlerErrorKind, HandlerResult, Result};
 
 /// Tokens mapped to an authorized id, from rocket's Config
 type AuthToken = String;

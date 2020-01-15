@@ -1,7 +1,11 @@
 [package]
 name = "megaphone"
 version = "0.1.5"
-authors = ["jrconlin <me+crypt@jrconlin.com>"]
+authors = [
+  "jrconlin <me+crypt@jrconlin.com>",
+  "Philip Jenvey <pjenvey@underboss.org>",
+]
+edition = "2018"
 
 [dependencies]
 diesel = { version = "1.4.3", features = ["mysql", "r2d2"] }

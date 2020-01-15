@@ -18,14 +18,14 @@ use rocket::{
 };
 use rocket_contrib::json::JsonValue;
 
-use auth;
-use db::{
+use crate::auth;
+use crate::db::{
     self,
     models::{Broadcaster, Reader},
     schema::broadcastsv1,
 };
-use error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
-use logging::{self, RequestLogger};
+use crate::error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
+use crate::logging::{self, RequestLogger};
 
 lazy_static! {
     static ref URLSAFE_B64_RE: Regex = Regex::new(r"^[A-Za-z0-9\-_]+$").unwrap();

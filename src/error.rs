@@ -14,7 +14,7 @@ use rocket::http::{Header, Status};
 use rocket::response::{Responder, Response};
 use rocket::{self, response, Request, State};
 
-use logging::RequestLogger;
+use crate::logging::RequestLogger;
 
 pub type Result<T> = result::Result<T, Error>;
 
