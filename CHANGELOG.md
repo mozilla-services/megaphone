@@ -1,3 +1,35 @@
+<a name="0.1.6"></a>
+## 0.1.6 (2020-02-29)
+
+
+#### Chore
+
+*   upgrade debian stretch -> buster ([85cbe9e8](https://github.com/mozilla-services/megaphone/commit/85cbe9e8cf8b27361519ed7bb1cf00d283e90aa5))
+*   fix cargo install ([34b9809c](https://github.com/mozilla-services/megaphone/commit/34b9809cadce9cbc289781615f524bf844bdd44d))
+*   cargo fmt ([1fd2e8e3](https://github.com/mozilla-services/megaphone/commit/1fd2e8e30e8276374a5d559192080b615684d806))
+*   cargo fix --edition-idioms ([e2836bd7](https://github.com/mozilla-services/megaphone/commit/e2836bd70fe91ac0e06ec2bfb4fbbeda07107ddd))
+*   cargo fix --edition ([372dc903](https://github.com/mozilla-services/megaphone/commit/372dc903e736d2aa37523ba0791eb62ee9008273))
+*   update deps ([cb2a11e5](https://github.com/mozilla-services/megaphone/commit/cb2a11e5a1daa0f5012142cf094eabc989c3991b), closes [#76](https://github.com/mozilla-services/megaphone/issues/76))
+*   update deps per cargo audit ([e6585acc](https://github.com/mozilla-services/megaphone/commit/e6585acccc2c8044e22c1246b98e95fa68fc6d97), closes [#74](https://github.com/mozilla-services/megaphone/issues/74))
+*   utilize a rust-toolchain file ([a4b6e1f1](https://github.com/mozilla-services/megaphone/commit/a4b6e1f1155a13bc32dbcad1d06c04303666ea02))
+
+#### Features
+
+*   update dependencies ([1aa4aa1d](https://github.com/mozilla-services/megaphone/commit/1aa4aa1d233df749fbced6db720b0d19ee21df59), closes [#62](https://github.com/mozilla-services/megaphone/issues/62))
+*   improve the README ([e1aa5077](https://github.com/mozilla-services/megaphone/commit/e1aa5077069f6b5a66eb04b7791c6510336cbc0f), closes [#59](https://github.com/mozilla-services/megaphone/issues/59))
+
+#### Bug Fixes
+
+*   get_bool now returns ConfigError::Missing ([644d33f4](https://github.com/mozilla-services/megaphone/commit/644d33f4c7d8575670ddff300925fe9f6dfb8387), closes [#67](https://github.com/mozilla-services/megaphone/issues/67))
+*   propagate db pool errors into HandlerErrors ([3156643a](https://github.com/mozilla-services/megaphone/commit/3156643a338dbd99c42ce848a5c6e549a2f67324), closes [#59](https://github.com/mozilla-services/megaphone/issues/59))
+
+#### Refactor
+
+*   utilize slog_derive ([16b0922f](https://github.com/mozilla-services/megaphone/commit/16b0922f19cc4d9eb5e6c78243bc4cf0b653895a), closes [#64](https://github.com/mozilla-services/megaphone/issues/64))
+*   prefer regular slog macro names ([1e6b61df](https://github.com/mozilla-services/megaphone/commit/1e6b61df8500e52b1296193e10ba7039d0b1dc62))
+
+
+
 <a name="0.1.5"></a>
 ## 0.1.5 (2018-08-21)
 
