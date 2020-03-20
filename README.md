@@ -1,4 +1,4 @@
-[![License: MPL 2.0][mpl-svg]][mpl] [![Test Status][travis-badge]][travis] [![Build Status][circleci-badge]][circleci]
+[![License: MPL 2.0][mpl-svg]][mpl] [![Test Status][travis-badge]][travis] [![Build Status][circleci-badge]][circleci] [![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
 
 # Megaphone
 
@@ -143,6 +143,8 @@ Return a JSON response of the version information of the server.
 [travis]: https://travis-ci.org/mozilla-services/megaphone
 [circleci-badge]: https://circleci.com/gh/mozilla-services/megaphone.svg?style=shield&circle-token=074ae89011d1a7601378c41a4351e1e03f1e8177
 [circleci]: https://circleci.com/gh/mozilla-services/megaphone
+[matrix-badge]: https://img.shields.io/badge/chat%20on%20[m]-%23services%3Amozilla.org-blue
+[matrix]: https://chat.mozilla.org/#/room/#services:mozilla.org
 
 [WebPush WebSocket protocol]: https://mozilla-push-service.readthedocs.io/en/latest/design/#simplepush-protocol
 [revoke HTTPS Certificates]: https://blog.mozilla.org/security/2015/03/03/revoking-intermediate-certificates-introducing-onecrl/
