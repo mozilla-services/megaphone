@@ -66,8 +66,8 @@ All calls to Megaphone (minus the Dockerflow Status Checks) require authorizatio
 e.g.
 
 ```
-export ROCKET_BROADCASTER_AUTH={test="foobar"}
-export ROCKET_READER_AUTH={autopush="quux"}
+export ROCKET_BROADCASTER_AUTH={test=["foobar"]}
+export ROCKET_READER_AUTH={autopush=["quux"]}
 ```
 
 The *test* broadcaster would specify:
