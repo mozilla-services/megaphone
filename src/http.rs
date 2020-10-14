@@ -206,14 +206,14 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
 
 #[cfg(test)]
 mod test {
+    use crate::auth::test::to_table;
     use rocket;
-    use rocket::config::{Config, Environment, RocketConfig};
+    use rocket::config::{Config, Environment, RocketConfig, Value as RValue};
     use rocket::http::{Header, Status};
     use rocket::local::Client;
     use rocket::response::Response;
     use rocket_contrib::json;
     use serde_json::{self, Value};
-    use toml::{toml, toml_internal};
 
     use super::setup_rocket;
 
@@ -247,22 +247,22 @@ mod test {
         let database_url = rconfig
             .active()
             .get_str("database_url")
-            .expect("ROCKET_DATABASE_URL undefined");
-
+            .expect("ROCKET_DATABASE_URL undefined").to_owned();
         let config = Config::build(Environment::Development)
-            .extra("database_url", database_url)
+            .extra("database_url", RValue::String(database_url))
             .extra("database_pool_max_size", 1)
             .extra("database_use_test_transactions", true)
             .extra("json_logging", false)
             .extra(
                 "broadcaster_auth",
-                toml! {
-                    foo = ["feedfacedeadbeef", "deadbeeffacefeed"]
-                    baz = ["baada555deadbeef"]
-                },
+                to_table(["foo=feedfacedeadbeef,deadbeeffacefeed", "baz=baada555deadbeef"].to_vec())
             )
-            .extra("reader_auth", toml! {reader = ["00000000deadbeef"]})
+            .extra(
+                "reader_auth",
+                to_table(["reader=00000000deadbeef"].to_vec())
+            )
             .unwrap();
+        dbg!(&config);
 
         let rocket = setup_rocket(rocket::custom(config)).expect("rocket failed");
         Client::new(rocket).expect("rocket launch failed")
