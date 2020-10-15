@@ -28,6 +28,7 @@ jobs:
 
       - checkout
       - setup_remote_docker
+      - *docker_login
 
       - run:
           name: Create a version.json
@@ -64,7 +65,7 @@ jobs:
       - run:
           name: Restore Docker image cache
           command: docker load -i /cache/docker.tar
-
+      - *docker_login
       - run:
           name: Deploy to Dockerhub
           command: |
