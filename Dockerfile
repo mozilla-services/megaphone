@@ -16,8 +16,6 @@ RUN \
 
 FROM debian:buster-slim
 
-MAINTAINER <pjenvey@underboss.org>
-
 RUN \
     groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app && \

@@ -158,20 +158,37 @@ pub fn authorized_reader(request: &Request<'_>) -> HandlerResult<Reader> {
 }
 
 #[cfg(test)]
-mod test {
-    use rocket::config::{Config, Environment};
-    use toml::{toml, toml_internal};
+pub(crate) mod test {
+    use rocket::config::{Array, Config, Environment, Value};
+    use std::collections::BTreeMap;
 
     use super::{BearerTokenAuthenticator, Group};
+
+    pub(crate) fn to_table(vals: Vec<&str>) -> BTreeMap<String, Vec<Value>> {
+        let mut table = BTreeMap::new();
+        {
+            for val in vals {
+                let mut vargs: Vec<Value> = Array::new();
+                let bits: Vec<&str> = val.splitn(2, "=").collect();
+                let key = bits[0];
+                let items = bits[1];
+                for item in items.split(",") {
+                    vargs.push(item.into())
+                }
+                table.insert(key.into(), vargs);
+            }
+        }
+        table
+    }
 
     #[test]
     fn test_basic() {
         let config = Config::build(Environment::Development)
             .extra(
                 "broadcaster_auth",
-                toml! {foo = ["bar"] baz = ["quux", "wobble"]},
+                to_table(["foo=bar", "baz=quux,wobble"].to_vec()),
             )
-            .extra("reader_auth", toml! {otto = ["push"]})
+            .extra("reader_auth", to_table(["otto=push"].to_vec()))
             .unwrap();
         let authenicator = BearerTokenAuthenticator::from_config(&config).unwrap();
 
@@ -193,8 +210,11 @@ mod test {
     #[test]
     fn test_dupe_token() {
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", toml! {foo = ["bar"] baz = ["bar"]})
-            .extra("reader_auth", toml! {otto = ["push"]})
+            .extra(
+                "broadcaster_auth",
+                to_table(["foo=bar", "baz=bar"].to_vec()),
+            )
+            .extra("reader_auth", to_table(["otto=push"].to_vec()))
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }
@@ -202,8 +222,8 @@ mod test {
     #[test]
     fn test_dupe_token2() {
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", toml! {foo = ["bar"]})
-            .extra("reader_auth", toml! {baz = ["quux", "bar"]})
+            .extra("broadcaster_auth", to_table(["foo=bar"].to_vec()))
+            .extra("reader_auth", to_table(["baz=quux,bar"].to_vec()))
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }
@@ -211,8 +231,8 @@ mod test {
     #[test]
     fn test_dupe_user() {
         let config = Config::build(Environment::Development)
-            .extra("broadcaster_auth", toml! {foo = ["bar"]})
-            .extra("reader_auth", toml! {foo = ["baz"]})
+            .extra("broadcaster_auth", to_table(["foo=bar"].to_vec()))
+            .extra("reader_auth", to_table(["foo=baz"].to_vec()))
             .unwrap();
         assert!(BearerTokenAuthenticator::from_config(&config).is_err());
     }
