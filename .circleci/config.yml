@@ -17,6 +17,8 @@ defaults:
                   echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
               fi
 jobs:
+  # testing requires a database. Package also uses "nightly", which breaks clippy and
+  # audit. Skipping testing for now.
   build:
     docker:
       - image: docker:18.03.0-ce
@@ -97,7 +99,6 @@ workflows:
           filters:
             tags:
               only: /.*/
-
       - deploy:
           requires:
             - build
