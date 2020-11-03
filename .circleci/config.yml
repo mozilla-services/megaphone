@@ -6,6 +6,13 @@
 # DOCKER_PASS
 #
 version: 2.1
+commands:
+  run-tests:
+    steps:
+      - run:
+          name: cargo test
+          command: cargo test --all --verbose
+
 defaults:
     docker_login: &docker_login
       run:
@@ -21,19 +28,29 @@ jobs:
   # audit. Skipping testing for now.
   build:
     docker:
-      - image: docker:18.03.0-ce
+      - image: circleci/rust:latest
         auth:
             username: $DOCKER_USER
             password: $DOCKER_PASS
-    working_directory: /dockerflow
+        environment:
+            ROCKET_DATABASE_URL: mysql://test:test@127.0.0.1/megaphone
+            RUST_BACKTRACE: 1
+            # XXX: begin_test_transaction doesn't play nice over threaded tests
+            RUST_TEST_THREADS: 1
+      - image: circleci/mysql:5.7-ram
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+        environment:
+            MYSQL_ROOT_PASSWORD: random
+            MYSQL_USER: test
+            MYSQL_PASSWORD: test
+            MYSQL_DATABASE: megaphone
     steps:
-      - run:
-          name: Install Docker build dependencies
-          command: apk add --no-cache openssh-client git
-
       - checkout
       - setup_remote_docker
       - *docker_login
+      - run-tests
 
       - run:
           name: Create a version.json
@@ -54,11 +71,13 @@ jobs:
       # required since Workflows do not have the same remote docker instance.
       - run:
           name: docker save app:build
-          command: mkdir -p /cache; docker save -o /cache/docker.tar "app:build"
+          command: |
+            mkdir -p /home/circleci/cache
+            docker save -o /home/circleci/cache/docker.tar "app:build"
       - save_cache:
           key: v1-{{ .Branch }}-{{epoch}}
           paths:
-            - /cache/docker.tar
+            - /home/circleci/cache/docker.tar
 
   deploy:
     docker:
@@ -72,7 +91,7 @@ jobs:
           key: v1-{{.Branch}}
       - run:
           name: Restore Docker image cache
-          command: docker load -i /cache/docker.tar
+          command: docker load -i /home/circleci/cache/docker.tar
       - *docker_login
       - run:
           name: Deploy to Dockerhub
