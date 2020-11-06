@@ -247,7 +247,8 @@ mod test {
         let database_url = rconfig
             .active()
             .get_str("database_url")
-            .expect("ROCKET_DATABASE_URL undefined").to_owned();
+            .expect("ROCKET_DATABASE_URL undefined")
+            .to_owned();
         let config = Config::build(Environment::Development)
             .extra("database_url", RValue::String(database_url))
             .extra("database_pool_max_size", 1)
@@ -255,11 +256,17 @@ mod test {
             .extra("json_logging", false)
             .extra(
                 "broadcaster_auth",
-                to_table(["foo=feedfacedeadbeef,deadbeeffacefeed", "baz=baada555deadbeef"].to_vec())
+                to_table(
+                    [
+                        "foo=feedfacedeadbeef,deadbeeffacefeed",
+                        "baz=baada555deadbeef",
+                    ]
+                    .to_vec(),
+                ),
             )
             .extra(
                 "reader_auth",
-                to_table(["reader=00000000deadbeef"].to_vec())
+                to_table(["reader=00000000deadbeef"].to_vec()),
             )
             .unwrap();
         dbg!(&config);
