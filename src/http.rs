@@ -187,7 +187,7 @@ fn not_found() -> HandlerResult<()> {
 
 pub fn get_sentry(config: &rocket::config::Config) -> Option<sentry::ClientInitGuard> {
     let opts = sentry::ClientOptions {
-        debug: true,
+        // debug: true,
         ..Default::default()
     };
     if let Ok(sentry_dsn) = config.get_string("sentry_dsn") {
