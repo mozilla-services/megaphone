@@ -96,7 +96,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for Tags {
     type Error = failure::Error;
 
     fn from_request(req: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
-        Outcome::Success(req.guard::<State<'_, Tags>>().unwrap().inner().clone())
+        Outcome::Success(req.guard::<State<Tags>>().unwrap().inner().clone())
     }
 }
 

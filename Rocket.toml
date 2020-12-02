@@ -1,5 +1,5 @@
 [development]
-#database_url = "mysql://"
+database_url = "mysql://test:test@localhost/test"
 json_logging = false
 
 # Auth tokens for broadcasters and readers of broadcasts

@@ -115,7 +115,7 @@ fn broadcast(
     let created = broadcaster?.broadcast_new_version(&conn, &bchannel_id, &version)?;
     metrics.timer_with_tags(
         "broadcast.update",
-        (start - Instant::now()).as_millis() as u64,
+        (Instant::now() - start).as_millis() as u64,
         Some(tags),
     );
     let status = if created { Status::Created } else { Status::Ok };
@@ -148,7 +148,7 @@ fn get_broadcasts(
     let broadcasts = reader?.read_broadcasts(&conn)?;
     metrics.timer_with_tags(
         "broadcast.dump",
-        (start - Instant::now()).as_millis() as u64,
+        (Instant::now() - start).as_millis() as u64,
         None,
     );
 
@@ -221,7 +221,7 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
     let environment = rocket.config().environment;
     let logger = logging::init_logging(rocket.config())?;
     let metrics = Metrics::init(rocket.config())?;
-    let tags = Tags::init(rocket.config());
+    let tags = Tags::init(rocket.config())?;
     db::run_embedded_migrations(rocket.config())?;
     Ok(rocket
         .manage(pool)
