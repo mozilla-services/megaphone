@@ -111,10 +111,13 @@ fn broadcast(
     tags.tags.insert("version".to_owned(), version.clone());
     metrics.incr_with_tags("broadcast.cmd.update", Some(tags.clone()));
 
-
     let start = Instant::now();
     let created = broadcaster?.broadcast_new_version(&conn, &bchannel_id, &version)?;
-    metrics.timer_with_tags("broadcast.update", (start-Instant::now()).as_millis() as u64, Some(tags));
+    metrics.timer_with_tags(
+        "broadcast.update",
+        (start - Instant::now()).as_millis() as u64,
+        Some(tags),
+    );
     let status = if created { Status::Created } else { Status::Ok };
     info!(
         log,
@@ -143,7 +146,11 @@ fn get_broadcasts(
     let conn = conn?;
     let start = Instant::now();
     let broadcasts = reader?.read_broadcasts(&conn)?;
-    metrics.timer_with_tags("broadcast.dump", (start-Instant::now()).as_millis() as u64, None);
+    metrics.timer_with_tags(
+        "broadcast.dump",
+        (start - Instant::now()).as_millis() as u64,
+        None,
+    );
 
     Ok(json!({
         "code": 200,

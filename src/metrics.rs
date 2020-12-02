@@ -37,7 +37,10 @@ impl Drop for Metrics {
         if let Some(client) = self.client.as_ref() {
             if let Some(timer) = self.timer.as_ref() {
                 let lapse = (Instant::now() - timer.start).as_millis() as u64;
-                warn!(self.log, "⌚ Ending timer at nanos: {:?} : {:?}", &timer.label, lapse);
+                warn!(
+                    self.log,
+                    "⌚ Ending timer at nanos: {:?} : {:?}", &timer.label, lapse
+                );
                 let tagged = client.time_with_tags(&timer.label, lapse);
                 // Include any "hard coded" tags.
                 // tagged = tagged.with_tag("version", env!("CARGO_PKG_VERSION"));
@@ -134,7 +137,7 @@ impl Metrics {
         }
     }
 
-    pub fn timer_with_tags(&self, label:&str, lapse: u64, tags: Option<Tags>) {
+    pub fn timer_with_tags(&self, label: &str, lapse: u64, tags: Option<Tags>) {
         if let Some(client) = self.client.as_ref() {
             let mut tagged = client.time_with_tags(label, lapse);
             let mtags = tags.unwrap_or_default();
@@ -146,8 +149,10 @@ impl Metrics {
             match tagged.try_send() {
                 Err(e) => {
                     warn!(self.log, "Metric {} error {:?}", label, e);
-                },
-                Ok(v) => {dbg!(v);}
+                }
+                Ok(v) => {
+                    dbg!(v);
+                }
             }
         }
     }
