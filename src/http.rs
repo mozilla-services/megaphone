@@ -1,5 +1,6 @@
 use std::env;
 use std::io::Read;
+use std::time::Instant;
 
 use diesel::{dsl::sql, sql_types::Integer, OptionalExtension, QueryDsl, RunQueryDsl};
 use failure::ResultExt;
@@ -28,6 +29,8 @@ use crate::db::{
 };
 use crate::error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
 use crate::logging::{self, RequestLogger};
+use crate::metrics::Metrics;
+use crate::tags::Tags;
 
 lazy_static! {
     static ref URLSAFE_B64_RE: Regex = Regex::new(r"^[A-Za-z0-9\-_]+$").unwrap();
@@ -86,6 +89,8 @@ fn broadcast(
     broadcaster_id: String,
     bchannel_id: String,
     version: HandlerResult<VersionInput>,
+    metrics: Metrics,
+    base_tags: Tags,
 ) -> HandlerResult<status::Custom<JsonValue>> {
     let conn = conn?;
 
@@ -96,8 +101,20 @@ fn broadcast(
         Err(HandlerErrorKind::InvalidBchannelId)?
     }
 
+    let mut tags = base_tags.clone();
     let version = version?.value;
+
+    tags.tags
+        .insert("broadcaster".to_owned(), broadcaster_id.clone());
+    tags.tags
+        .insert("channel_id".to_owned(), bchannel_id.clone());
+    tags.tags.insert("version".to_owned(), version.clone());
+    metrics.incr_with_tags("broadcast.cmd.update", Some(tags.clone()));
+
+
+    let start = Instant::now();
     let created = broadcaster?.broadcast_new_version(&conn, &bchannel_id, &version)?;
+    metrics.timer_with_tags("broadcast.update", (start-Instant::now()).as_millis() as u64, Some(tags));
     let status = if created { Status::Created } else { Status::Ok };
     info!(
         log,
@@ -120,9 +137,14 @@ fn broadcast(
 fn get_broadcasts(
     conn: HandlerResult<db::Conn>,
     reader: HandlerResult<Reader>,
+    metrics: Metrics,
 ) -> HandlerResult<JsonValue> {
+    metrics.incr("broadcast.cmd.dump");
     let conn = conn?;
+    let start = Instant::now();
     let broadcasts = reader?.read_broadcasts(&conn)?;
+    metrics.timer_with_tags("broadcast.dump", (start-Instant::now()).as_millis() as u64, None);
+
     Ok(json!({
         "code": 200,
         "broadcasts": broadcasts
@@ -191,12 +213,16 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
     let authenticator = auth::BearerTokenAuthenticator::from_config(rocket.config())?;
     let environment = rocket.config().environment;
     let logger = logging::init_logging(rocket.config())?;
+    let metrics = Metrics::init(rocket.config())?;
+    let tags = Tags::init(rocket.config());
     db::run_embedded_migrations(rocket.config())?;
     Ok(rocket
         .manage(pool)
         .manage(authenticator)
         .manage(environment)
         .manage(logger)
+        .manage(metrics)
+        .manage(tags)
         .mount(
             "/",
             routes![broadcast, get_broadcasts, version, heartbeat, lbheartbeat],
