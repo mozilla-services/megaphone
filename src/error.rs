@@ -65,6 +65,10 @@ pub enum HandlerErrorKind {
     /// 503 Service Unavailable
     #[fail(display = "A database error occurred")]
     DBError,
+
+    /// 413 Test Error
+    #[fail(display = "Oh Noes!")]
+    TestError,
 }
 
 impl HandlerErrorKind {
@@ -95,6 +99,8 @@ impl HandlerErrorKind {
 
             HandlerErrorKind::InternalError => 201,
             HandlerErrorKind::DBError => 202,
+
+            HandlerErrorKind::TestError => 413,
         }
     }
 }
@@ -139,6 +145,12 @@ impl<'r> Responder<'r> for HandlerError {
         let status = self.kind().http_status();
         let errno = self.kind().errno();
         let log = RequestLogger::with_request(request).map_err(|_| Status::InternalServerError)?;
+        let sentry_client = request
+            .guard::<State<'_, Option<sentry::ClientInitGuard>>>()
+            .succeeded();
+        if sentry_client.is_some() {
+            sentry::capture_event(sentry_failure::event_from_fail(&self));
+        };
         match status {
             Status::Unauthorized | Status::Forbidden => {
                 warn!(log, "{}", &self; "code" => status.code, "errno" => errno)

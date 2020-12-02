@@ -1,6 +1,7 @@
 [development]
 database_url = "mysql://test:test@localhost/test"
-json_logging = false
+#json_logging = false
+sentry_dsn = "https://xxx@sentry.prod.mozaws.net/58"
 
 # Auth tokens for broadcasters and readers of broadcasts
 [development.broadcaster_auth]

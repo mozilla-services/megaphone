@@ -70,8 +70,11 @@ impl Metrics {
         StatsdClient::builder("", NopMetricSink)
     }
 
-    pub fn init(config: &Config) -> error::Result<Metrics> {
-        let logging = logging::init_logging(config)?;
+    pub fn init(
+        config: &Config,
+        sentry: &Option<sentry::ClientInitGuard>,
+    ) -> error::Result<Metrics> {
+        let logging = logging::init_logging(config, sentry)?;
         let builder = match config.get_string("statsd_host") {
             Ok(statsd_host) => {
                 let socket = UdpSocket::bind("0.0.0.0:0")?;

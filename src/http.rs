@@ -158,6 +158,19 @@ fn get_broadcasts(
     }))
 }
 
+#[get("/v1/err")]
+fn log_check(
+    _conn: HandlerResult<db::Conn>,
+    log: RequestLogger,
+) -> HandlerResult<content::Json<&'static str>> {
+    info!(log, "Oh my!");
+    error!(log, "Oh dear!");
+    // Attempt to force a message through.
+    // sentry::capture_message("Oh bother!", sentry::protocol::Level::Info);
+    // panic!("Oh noes!")
+    Err(HandlerErrorKind::TestError.into())
+}
+
 #[get("/__version__")]
 fn version() -> content::Json<&'static str> {
     content::Json(include_str!("../version.json"))
@@ -201,6 +214,23 @@ fn not_found() -> HandlerResult<()> {
     Err(HandlerErrorKind::NotFound)?
 }
 
+pub fn get_sentry(config: &rocket::config::Config) -> Option<sentry::ClientInitGuard> {
+    let opts = sentry::ClientOptions {
+        // debug: true,
+        ..Default::default()
+    };
+    if let Ok(sentry_dsn) = config.get_string("sentry_dsn") {
+        Some(sentry::init((sentry_dsn, opts)))
+    } else {
+        // Check the global env to see if we need to connect to sentry.
+        if env::var("SENTRY_DSN").is_ok() {
+            Some(sentry::init(opts))
+        } else {
+            None
+        }
+    }
+}
+
 pub fn rocket() -> Result<Rocket> {
     // RocketConfig::init basically
     let rconfig = RocketConfig::read().unwrap_or_else(|_| {
@@ -219,9 +249,11 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
     let pool = db::pool_from_config(rocket.config())?;
     let authenticator = auth::BearerTokenAuthenticator::from_config(rocket.config())?;
     let environment = rocket.config().environment;
-    let logger = logging::init_logging(rocket.config())?;
-    let metrics = Metrics::init(rocket.config())?;
+    let sentry_client = get_sentry(rocket.config());
+    let logger = logging::init_logging(rocket.config(), &sentry_client)?;
     let tags = Tags::init(rocket.config())?;
+    let metrics = Metrics::init(rocket.config(), &sentry_client)?;
+    info!(logger, "Starting up");
     db::run_embedded_migrations(rocket.config())?;
     Ok(rocket
         .manage(pool)
@@ -230,9 +262,17 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
         .manage(logger)
         .manage(metrics)
         .manage(tags)
+        .manage(sentry_client)
         .mount(
             "/",
-            routes![broadcast, get_broadcasts, version, heartbeat, lbheartbeat],
+            routes![
+                broadcast,
+                get_broadcasts,
+                version,
+                heartbeat,
+                lbheartbeat,
+                log_check
+            ],
         )
         .register(catchers![not_found]))
 }
