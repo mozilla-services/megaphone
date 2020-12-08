@@ -12,6 +12,8 @@ mod db;
 mod error;
 mod http;
 mod logging;
+mod metrics;
+mod tags;
 
 fn main() {
     http::rocket().expect("rocket failed").launch();
