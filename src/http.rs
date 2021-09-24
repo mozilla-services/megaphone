@@ -2,7 +2,7 @@ use std::env;
 use std::io::Read;
 use std::time::Instant;
 
-use diesel::{dsl::sql, sql_types::Integer, OptionalExtension, QueryDsl, RunQueryDsl};
+use diesel::RunQueryDsl;
 use failure::ResultExt;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -25,7 +25,6 @@ use crate::auth;
 use crate::db::{
     self,
     models::{Broadcaster, Reader},
-    schema::broadcastsv1,
 };
 use crate::error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
 use crate::logging::{self, RequestLogger};
@@ -179,10 +178,8 @@ fn version() -> content::Json<&'static str> {
 #[get("/__heartbeat__")]
 fn heartbeat(conn: HandlerResult<db::Conn>, log: RequestLogger) -> status::Custom<JsonValue> {
     let result = conn.and_then(|conn| {
-        Ok(broadcastsv1::table
-            .select(sql::<Integer>("1"))
-            .get_result::<i32>(&*conn)
-            .optional()
+        Ok(diesel::sql_query("SELECT 1")
+            .execute(&*conn)
             .context(HandlerErrorKind::DBError)?)
     });
 
