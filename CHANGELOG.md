@@ -1,3 +1,26 @@
+<a name="0.2.0"></a>
+## 0.2.0 (2021-09-28)
+
+
+#### Bug Fixes
+
+*   oops, improve the health check (#97) ([d26e6d23](https://github.com/mozilla-services/megaphone/commit/d26e6d23d7543d0c2925318907b6eed839b513f2), closes [#96](https://github.com/mozilla-services/megaphone/issues/96))
+*   Add libcurl4 to Dockerfile ([ab19b4f7](https://github.com/mozilla-services/megaphone/commit/ab19b4f7e382e6002150218f9fffeaf556a79267), closes [#94](https://github.com/mozilla-services/megaphone/issues/94))
+
+#### Features
+
+*   Add metrics ([9fdb5973](https://github.com/mozilla-services/megaphone/commit/9fdb5973a05d49bfd3a49b8fc2c6ebc4f4c00182), closes [#83](https://github.com/mozilla-services/megaphone/issues/83))
+*   add sentry error reporting ([ec2a104c](https://github.com/mozilla-services/megaphone/commit/ec2a104ccdc65749a457ab4e153f19842e18f593), closes [#70](https://github.com/mozilla-services/megaphone/issues/70))
+
+#### Chore
+
+*   Base to rocket "0.4" ([67f4b98f](https://github.com/mozilla-services/megaphone/commit/67f4b98fd4f4cc236d0ca3c5405c709e2ff182eb), closes [#84](https://github.com/mozilla-services/megaphone/issues/84))
+*   update circleci to use new docker auth (#85) ([0813565e](https://github.com/mozilla-services/megaphone/commit/0813565eae8d6df8db816ada519dde320416762c))
+*   Update Docker to rust 1.45 ([58d0cc4a](https://github.com/mozilla-services/megaphone/commit/58d0cc4a12e9a3a11d5ddd1d0d142f354e29baf4))
+*   add a badge for the matrix channel ([40cacd24](https://github.com/mozilla-services/megaphone/commit/40cacd24a6ec3737906eb1cc96fbc0c1c7a83ca2))
+
+
+
 <a name="0.1.6"></a>
 ## 0.1.6 (2020-02-29)
 
