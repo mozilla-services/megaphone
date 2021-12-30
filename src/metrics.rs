@@ -1,8 +1,9 @@
 use std::net::UdpSocket;
+use std::sync::Arc;
 use std::time::Instant;
 
 use cadence::{
-    BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient,
+    BufferedUdpMetricSink, CountedExt, Metric, NopMetricSink, QueuingMetricSink, StatsdClient,
     StatsdClientBuilder, Timed,
 };
 use rocket::{
@@ -25,7 +26,7 @@ pub struct MetricTimer {
 
 #[derive(Debug, Clone)]
 pub struct Metrics {
-    client: Option<StatsdClient>,
+    client: Option<Arc<StatsdClient>>,
     tags: Option<Tags>,
     log: Logger,
     timer: Option<MetricTimer>,
@@ -100,11 +101,11 @@ impl Metrics {
             }
         };
         Ok(Metrics {
-            client: Some(
+            client: Some(Arc::new(
                 builder
                     .with_error_handler(|err| println!("Metric send error: {:?}", err))
                     .build(),
-            ),
+            )),
             log: logging.clone(),
             timer: None,
             tags: Some(Tags::init(config)?),

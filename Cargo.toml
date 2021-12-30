@@ -8,7 +8,7 @@ authors = [
 edition = "2018"
 
 [dependencies]
-cadence = { version = "0.22"}
+cadence = { version = "0.27.0"}
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 failure = "0.1"
@@ -34,3 +34,5 @@ slog-mozlog-json = "0.1.0"
 slog-term = "2.6"
 # must match the toml (minor) version rocket depends on
 toml = "0.5"
+
+http="0.2"
