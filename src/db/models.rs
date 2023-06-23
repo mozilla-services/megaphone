@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use diesel::mysql::MysqlConnection;
 use diesel::sql_types::Text;
 use diesel::{sql_query, QueryDsl, RunQueryDsl};
-use failure::ResultExt;
 
 use super::schema::broadcastsv1;
 use crate::error::{HandlerErrorKind, HandlerResult};
@@ -57,7 +56,7 @@ impl Broadcaster {
             .bind::<Text, _>(version)
             .bind::<Text, _>(version)
             .execute(conn)
-            .context(HandlerErrorKind::DBError)?;
+            .map_err(HandlerErrorKind::DBError)?;
         Ok(affected_rows == 1)
     }
 }
@@ -84,7 +83,7 @@ impl Reader {
                 broadcastsv1::version,
             ))
             .load::<Broadcast>(conn)
-            .context(HandlerErrorKind::DBError)?
+            .map_err(HandlerErrorKind::DBError)?
             .into_iter()
             .map(|bcast| (bcast.id(), bcast.version))
             .collect())

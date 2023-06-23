@@ -8,7 +8,6 @@
 /// broadcasts.
 use std::collections::HashMap;
 
-use failure::format_err;
 use rocket::config::Value;
 use rocket::{Config, Request, State};
 
@@ -56,24 +55,30 @@ impl BearerTokenAuthenticator {
     /// Load the Group's auth configuration
     fn load_auth_from_config(&mut self, group: Group, config: &Config) -> Result<()> {
         let name = group.config_name();
-        let auth_config = config
-            .get_table(name)
-            .map_err(|_| format_err!("Invalid or undefined ROCKET_{}", name.to_uppercase()))?;
+        let auth_config = config.get_table(name).map_err(|_| {
+            HandlerErrorKind::InternalError(format!(
+                "Invalid or undefined ROCKET_{}",
+                name.to_uppercase()
+            ))
+        })?;
 
         for (user_id, tokens_val) in auth_config {
             if let Some(dupe) = self.groups.get(user_id) {
-                Err(format_err!(
+                Err(HandlerErrorKind::InternalError(format!(
                     "Invalid {} user: {:?} dupe user in: {}",
                     name,
                     user_id,
                     dupe.config_name()
-                ))?
+                )))?
             }
             self.groups.insert(user_id.to_string(), group);
 
-            let tokens = tokens_val
-                .as_array()
-                .ok_or_else(|| format_err!("Invalid {} token array for: {:?}", name, user_id))?;
+            let tokens = tokens_val.as_array().ok_or_else(|| {
+                HandlerErrorKind::InternalError(format!(
+                    "Invalid {} token array for: {:?}",
+                    name, user_id
+                ))
+            })?;
             self.load_tokens(user_id, group, tokens)?;
         }
         Ok(())
@@ -82,17 +87,17 @@ impl BearerTokenAuthenticator {
     fn load_tokens(&mut self, user_id: &UserId, group: Group, tokens: &[Value]) -> Result<()> {
         let name = group.config_name();
         for element in tokens {
-            let token = element
-                .as_str()
-                .ok_or_else(|| format_err!("Invalid {} token for: {:?}", name, user_id))?;
+            let token = element.as_str().ok_or_else(|| {
+                HandlerErrorKind::InternalError(format!(
+                    "Invalid {} token for: {:?}",
+                    name, user_id
+                ))
+            })?;
             if let Some(dupe) = self.users.get(token) {
-                Err(format_err!(
+                Err(HandlerErrorKind::InternalError(format!(
                     "Invalid {} token for: {:?} dupe in: {:?} ({:?})",
-                    name,
-                    user_id,
-                    dupe,
-                    token
-                ))?
+                    name, user_id, dupe, token
+                )))?
             }
             self.users.insert(token.to_string(), user_id.to_string());
         }
@@ -111,10 +116,14 @@ impl BearerTokenAuthenticator {
             .get(parts[1])
             .ok_or_else(|| HandlerErrorKind::InvalidAuth)?;
         // Authenticated
-        let group = self
-            .groups
-            .get(user_id)
-            .ok_or_else(|| HandlerErrorKind::InternalError)?;
+        let group = match self.groups.get(user_id) {
+            Some(v) => v,
+            None => {
+                return Err(
+                    HandlerErrorKind::InternalError("Could not get group".to_owned()).into(),
+                )
+            }
+        };
         Ok((user_id.to_string(), *group))
     }
 }
@@ -124,10 +133,13 @@ fn authenticated_user(request: &Request<'_>) -> HandlerResult<(UserId, Group)> {
         .headers()
         .get_one("Authorization")
         .ok_or_else(|| HandlerErrorKind::MissingAuth)?;
-    request
+    let rr = request
         .guard::<State<'_, BearerTokenAuthenticator>>()
-        .success_or(HandlerErrorKind::InternalError)?
-        .authenticated_user(credentials)
+        .success_or(HandlerErrorKind::InternalError(
+            "Could not get bearer token".into(),
+        ))?
+        .authenticated_user(credentials)?;
+    Ok(rr)
 }
 
 pub fn authorized_broadcaster(request: &Request<'_>) -> HandlerResult<Broadcaster> {
@@ -136,8 +148,12 @@ pub fn authorized_broadcaster(request: &Request<'_>) -> HandlerResult<Broadcaste
     // param should be guaranteed on the path when we're called
     let for_broadcast_id = request
         .get_param::<String>(2)
-        .ok_or(HandlerErrorKind::InternalError)?
-        .map_err(|_| HandlerErrorKind::InternalError)?;
+        .ok_or(HandlerErrorKind::InternalError(
+            "Could not get broadcast_id".to_owned(),
+        ))?
+        .map_err(|_| {
+            HandlerErrorKind::InternalError("Could not map to valid broadcast ID".to_owned())
+        })?;
 
     if group == Group::Broadcaster && id == for_broadcast_id {
         // Authorized
@@ -169,10 +185,10 @@ pub(crate) mod test {
         {
             for val in vals {
                 let mut vargs: Vec<Value> = Array::new();
-                let bits: Vec<&str> = val.splitn(2, "=").collect();
+                let bits: Vec<&str> = val.splitn(2, '=').collect();
                 let key = bits[0];
                 let items = bits[1];
-                for item in items.split(",") {
+                for item in items.split(',') {
                     vargs.push(item.into())
                 }
                 table.insert(key.into(), vargs);

@@ -3,7 +3,6 @@ use std::io::Read;
 use std::time::Instant;
 
 use diesel::RunQueryDsl;
-use failure::ResultExt;
 use lazy_static::lazy_static;
 use regex::Regex;
 use rocket::{
@@ -54,11 +53,12 @@ impl FromDataSimple for VersionInput {
 
     fn from_data(_: &Request<'_>, data: Data) -> data::Outcome<Self, HandlerError> {
         let mut value = String::new();
-        data.open()
-            .read_to_string(&mut value)
-            .context(HandlerErrorKind::MissingVersionDataError)
-            .map_err(Into::into)
-            .into_outcome(VALIDATION_FAILED)?;
+        if let Err(_e) = data.open().read_to_string(&mut value) {
+            return Failure((
+                VALIDATION_FAILED,
+                HandlerErrorKind::MissingVersionDataError.into(),
+            ));
+        };
         if value.is_empty() || value.len() > 200 || !value.is_ascii() {
             return Failure((
                 VALIDATION_FAILED,
@@ -79,6 +79,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for Reader {
 
 // REST Functions
 
+#[allow(clippy::too_many_arguments)]
 /// Set a version for a broadcaster / bchannel
 #[put("/v1/broadcasts/<broadcaster_id>/<bchannel_id>", data = "<version>")]
 fn broadcast(
@@ -100,7 +101,7 @@ fn broadcast(
         Err(HandlerErrorKind::InvalidBchannelId)?
     }
 
-    let mut tags = base_tags.clone();
+    let mut tags = base_tags;
     let version = version?.value;
 
     tags.tags
@@ -180,7 +181,7 @@ fn heartbeat(conn: HandlerResult<db::Conn>, log: RequestLogger) -> status::Custo
     let result = conn.and_then(|conn| {
         Ok(diesel::sql_query("SELECT 1")
             .execute(&*conn)
-            .context(HandlerErrorKind::DBError)?)
+            .map_err(HandlerErrorKind::DBError)?)
     });
 
     let status = match result {
@@ -233,7 +234,7 @@ pub fn rocket() -> Result<Rocket> {
     let rconfig = RocketConfig::read().unwrap_or_else(|_| {
         let path = env::current_dir()
             .unwrap()
-            .join(&format!(".{}.{}", "default", "Rocket.toml"));
+            .join(format!(".{}.{}", "default", "Rocket.toml"));
         RocketConfig::active_default_from(Some(&path)).unwrap()
     });
 
@@ -277,7 +278,6 @@ fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
 #[cfg(test)]
 mod test {
     use crate::auth::test::to_table;
-    use rocket;
     use rocket::config::{Config, Environment, RocketConfig, Value as RValue};
     use rocket::http::{Header, Status};
     use rocket::local::Client;
@@ -295,9 +295,9 @@ mod test {
         Reader,
     }
 
-    impl Into<Header<'static>> for Auth {
-        fn into(self) -> Header<'static> {
-            let token = match self {
+    impl From<Auth> for Header<'static> {
+        fn from(auth: Auth) -> Header<'static> {
+            let token = match auth {
                 Auth::Foo => "feedfacedeadbeef",
                 Auth::FooAlt => "deadbeeffacefeed",
                 Auth::Baz => "baada555deadbeef",
