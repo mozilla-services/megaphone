@@ -123,9 +123,8 @@ impl Display for HandlerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Error: {}\nBacktrace: \n{:?}",
+            "{}",
             self.kind(),
-            self.backtrace
         )?;
 
         // Go down the chain of errors
