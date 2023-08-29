@@ -1,6 +1,6 @@
 [package]
 name = "megaphone"
-version = "0.2.0"
+version = "0.3.0"
 authors = [
   "jrconlin <me+crypt@jrconlin.com>",
   "Philip Jenvey <pjenvey@underboss.org>",
@@ -28,3 +28,6 @@ slog_derive = "0.2.0"
 slog-mozlog-json = "0.1.0"
 slog-term = "2.6"
 thiserror = "1.0"
+
+openssl-sys = "0.9"
+openssl = "0.10"
