@@ -121,11 +121,7 @@ impl HandlerError {
 
 impl Display for HandlerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.kind(),
-        )?;
+        write!(f, "{}", self.kind(),)?;
 
         // Go down the chain of errors
         let mut error: &dyn std::error::Error = &self.inner;

@@ -1,3 +1,6 @@
+// Include for clippy error on `fn lbhearbeat` expansion
+#![allow(clippy::let_unit_value)]
+
 use std::env;
 use std::io::Read;
 use std::time::Instant;
