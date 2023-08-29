@@ -19,8 +19,6 @@ use thiserror::Error;
 
 use crate::logging::RequestLogger;
 
-pub type Result<T> = result::Result<T, HandlerError>;
-
 pub type HandlerResult<T> = result::Result<T, HandlerError>;
 
 /// Signal a request guard failure, propagated up to the Handler to render an

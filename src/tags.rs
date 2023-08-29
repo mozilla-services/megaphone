@@ -8,7 +8,7 @@ use serde::{
 };
 use std::collections::{BTreeMap, HashMap};
 
-use crate::error::{HandlerError, Result};
+use crate::error::{HandlerError, HandlerResult};
 
 #[derive(Clone, Debug, Default)]
 pub struct Tags {
@@ -92,7 +92,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for Tags {
 }
 
 impl Tags {
-    pub fn init(_config: &Config) -> Result<Self> {
+    pub fn init(_config: &Config) -> HandlerResult<Self> {
         let tags = HashMap::new();
         let extra = HashMap::new();
         /* parse the header?

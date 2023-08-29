@@ -12,7 +12,7 @@ use rocket::config::Value;
 use rocket::{Config, Request, State};
 
 use crate::db::models::{Broadcaster, Reader};
-use crate::error::{HandlerError, HandlerErrorKind, HandlerResult, Result};
+use crate::error::{HandlerError, HandlerErrorKind, HandlerResult};
 
 /// Tokens mapped to an authorized id, from rocket's Config
 type AuthToken = String;
@@ -42,7 +42,7 @@ pub struct BearerTokenAuthenticator {
 }
 
 impl BearerTokenAuthenticator {
-    pub fn from_config(config: &Config) -> Result<BearerTokenAuthenticator> {
+    pub fn from_config(config: &Config) -> HandlerResult<BearerTokenAuthenticator> {
         let mut authenticator = BearerTokenAuthenticator {
             users: HashMap::new(),
             groups: HashMap::new(),
@@ -53,7 +53,7 @@ impl BearerTokenAuthenticator {
     }
 
     /// Load the Group's auth configuration
-    fn load_auth_from_config(&mut self, group: Group, config: &Config) -> Result<()> {
+    fn load_auth_from_config(&mut self, group: Group, config: &Config) -> HandlerResult<()> {
         let name = group.config_name();
         let auth_config = config.get_table(name).map_err(|_| {
             HandlerError::internal(format!(
@@ -81,7 +81,12 @@ impl BearerTokenAuthenticator {
         Ok(())
     }
 
-    fn load_tokens(&mut self, user_id: &UserId, group: Group, tokens: &[Value]) -> Result<()> {
+    fn load_tokens(
+        &mut self,
+        user_id: &UserId,
+        group: Group,
+        tokens: &[Value],
+    ) -> HandlerResult<()> {
         let name = group.config_name();
         for element in tokens {
             let token = element.as_str().ok_or_else(|| {

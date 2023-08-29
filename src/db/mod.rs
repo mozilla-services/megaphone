@@ -11,7 +11,7 @@ use diesel::Connection;
 use rocket::request::{self, FromRequest};
 use rocket::{Config, Outcome, Request, State};
 
-use crate::error::{HandlerError, Result, VALIDATION_FAILED};
+use crate::error::{HandlerError, HandlerResult, VALIDATION_FAILED};
 
 pub type MysqlPool = Pool<ConnectionManager<MysqlConnection>>;
 
@@ -21,7 +21,7 @@ embed_migrations!();
 ///
 /// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
-pub fn run_embedded_migrations(config: &Config) -> Result<()> {
+pub fn run_embedded_migrations(config: &Config) -> HandlerResult<()> {
     let database_url = config
         .get_str("database_url")
         .map_err(|_| HandlerError::internal("Invalid or undefined ROCKET_DATABASE_URL".into()))?
@@ -31,7 +31,7 @@ pub fn run_embedded_migrations(config: &Config) -> Result<()> {
     Ok(())
 }
 
-pub fn pool_from_config(config: &Config) -> Result<MysqlPool> {
+pub fn pool_from_config(config: &Config) -> HandlerResult<MysqlPool> {
     let database_url = config
         .get_str("database_url")
         .map_err(|_| HandlerError::internal("Invalid or undefined ROCKET_DATABASE_URL".into()))?

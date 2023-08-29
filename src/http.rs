@@ -28,7 +28,7 @@ use crate::db::{
     self,
     models::{Broadcaster, Reader},
 };
-use crate::error::{HandlerError, HandlerErrorKind, HandlerResult, Result, VALIDATION_FAILED};
+use crate::error::{HandlerError, HandlerErrorKind, HandlerResult, VALIDATION_FAILED};
 use crate::logging::{self, RequestLogger};
 use crate::metrics::Metrics;
 use crate::tags::Tags;
@@ -228,7 +228,7 @@ pub fn get_sentry(config: &rocket::config::Config) -> Option<sentry::ClientInitG
     }
 }
 
-pub fn rocket() -> Result<Rocket> {
+pub fn rocket() -> HandlerResult<Rocket> {
     // RocketConfig::init basically
     let rconfig = RocketConfig::read().unwrap_or_else(|_| {
         let path = env::current_dir()
@@ -242,7 +242,7 @@ pub fn rocket() -> Result<Rocket> {
     setup_rocket(rocket::custom(config))
 }
 
-fn setup_rocket(rocket: Rocket) -> Result<Rocket> {
+fn setup_rocket(rocket: Rocket) -> HandlerResult<Rocket> {
     let pool = db::pool_from_config(rocket.config())?;
     let authenticator = auth::BearerTokenAuthenticator::from_config(rocket.config())?;
     let environment = rocket.config().environment;

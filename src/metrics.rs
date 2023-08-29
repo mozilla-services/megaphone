@@ -74,7 +74,7 @@ impl Metrics {
     pub fn init(
         config: &Config,
         sentry: &Option<sentry::ClientInitGuard>,
-    ) -> error::Result<Metrics> {
+    ) -> error::HandlerResult<Metrics> {
         let logging = logging::init_logging(config, sentry)?;
         let builder = match config.get_string("statsd_host") {
             Ok(statsd_host) => {

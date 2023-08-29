@@ -18,7 +18,7 @@ use slog::{self, slog_o, Drain};
 use slog_derive::KV;
 use slog_mozlog_json::MozLogJson;
 
-use crate::error::{HandlerError, Result};
+use crate::error::{HandlerError, HandlerResult};
 
 lazy_static! {
     static ref LOGGER_NAME: String =
@@ -52,7 +52,7 @@ impl MozLogFields {
 pub struct RequestLogger(slog::Logger);
 
 impl RequestLogger {
-    pub fn with_request(request: &Request<'_>) -> Result<RequestLogger> {
+    pub fn with_request(request: &Request<'_>) -> HandlerResult<RequestLogger> {
         let logger =
             request
                 .guard::<State<'_, RequestLogger>>()
@@ -84,7 +84,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for RequestLogger {
 pub fn init_logging(
     config: &Config,
     sentry: &Option<sentry::ClientInitGuard>,
-) -> Result<RequestLogger> {
+) -> HandlerResult<RequestLogger> {
     let json_logging = match config.get_bool("json_logging") {
         Ok(json_logging) => json_logging,
         Err(ConfigError::Missing(_)) => true,
