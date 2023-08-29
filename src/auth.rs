@@ -12,7 +12,7 @@ use rocket::config::Value;
 use rocket::{Config, Request, State};
 
 use crate::db::models::{Broadcaster, Reader};
-use crate::error::{HandlerErrorKind, HandlerResult, Result};
+use crate::error::{HandlerError, HandlerErrorKind, HandlerResult, Result};
 
 /// Tokens mapped to an authorized id, from rocket's Config
 type AuthToken = String;
@@ -56,7 +56,7 @@ impl BearerTokenAuthenticator {
     fn load_auth_from_config(&mut self, group: Group, config: &Config) -> Result<()> {
         let name = group.config_name();
         let auth_config = config.get_table(name).map_err(|_| {
-            HandlerErrorKind::InternalError(format!(
+            HandlerError::internal(format!(
                 "Invalid or undefined ROCKET_{}",
                 name.to_uppercase()
             ))
@@ -64,7 +64,7 @@ impl BearerTokenAuthenticator {
 
         for (user_id, tokens_val) in auth_config {
             if let Some(dupe) = self.groups.get(user_id) {
-                Err(HandlerErrorKind::InternalError(format!(
+                Err(HandlerError::internal(format!(
                     "Invalid {} user: {:?} dupe user in: {}",
                     name,
                     user_id,
@@ -74,10 +74,7 @@ impl BearerTokenAuthenticator {
             self.groups.insert(user_id.to_string(), group);
 
             let tokens = tokens_val.as_array().ok_or_else(|| {
-                HandlerErrorKind::InternalError(format!(
-                    "Invalid {} token array for: {:?}",
-                    name, user_id
-                ))
+                HandlerError::internal(format!("Invalid {} token array for: {:?}", name, user_id))
             })?;
             self.load_tokens(user_id, group, tokens)?;
         }
@@ -88,13 +85,10 @@ impl BearerTokenAuthenticator {
         let name = group.config_name();
         for element in tokens {
             let token = element.as_str().ok_or_else(|| {
-                HandlerErrorKind::InternalError(format!(
-                    "Invalid {} token for: {:?}",
-                    name, user_id
-                ))
+                HandlerError::internal(format!("Invalid {} token for: {:?}", name, user_id))
             })?;
             if let Some(dupe) = self.users.get(token) {
-                Err(HandlerErrorKind::InternalError(format!(
+                Err(HandlerError::internal(format!(
                     "Invalid {} token for: {:?} dupe in: {:?} ({:?})",
                     name, user_id, dupe, token
                 )))?
@@ -116,13 +110,8 @@ impl BearerTokenAuthenticator {
             .get(parts[1])
             .ok_or_else(|| HandlerErrorKind::InvalidAuth)?;
         // Authenticated
-        let group = match self.groups.get(user_id) {
-            Some(v) => v,
-            None => {
-                return Err(
-                    HandlerErrorKind::InternalError("Could not get group".to_owned()).into(),
-                )
-            }
+        let Some(group) = self.groups.get(user_id) else {
+            return Err(HandlerError::internal("Could not get group".to_owned()));
         };
         Ok((user_id.to_string(), *group))
     }
@@ -135,9 +124,7 @@ fn authenticated_user(request: &Request<'_>) -> HandlerResult<(UserId, Group)> {
         .ok_or_else(|| HandlerErrorKind::MissingAuth)?;
     let rr = request
         .guard::<State<'_, BearerTokenAuthenticator>>()
-        .success_or(HandlerErrorKind::InternalError(
-            "Could not get bearer token".into(),
-        ))?
+        .success_or(HandlerError::internal("Could not get bearer token".into()))?
         .authenticated_user(credentials)?;
     Ok(rr)
 }
@@ -148,12 +135,10 @@ pub fn authorized_broadcaster(request: &Request<'_>) -> HandlerResult<Broadcaste
     // param should be guaranteed on the path when we're called
     let for_broadcast_id = request
         .get_param::<String>(2)
-        .ok_or(HandlerErrorKind::InternalError(
+        .ok_or(HandlerError::internal(
             "Could not get broadcast_id".to_owned(),
         ))?
-        .map_err(|_| {
-            HandlerErrorKind::InternalError("Could not map to valid broadcast ID".to_owned())
-        })?;
+        .map_err(|_| HandlerError::internal("Could not map to valid broadcast ID".to_owned()))?;
 
     if group == Group::Broadcaster && id == for_broadcast_id {
         // Authorized

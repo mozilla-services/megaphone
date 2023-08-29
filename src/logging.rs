@@ -18,7 +18,7 @@ use slog::{self, slog_o, Drain};
 use slog_derive::KV;
 use slog_mozlog_json::MozLogJson;
 
-use crate::error::{HandlerError, HandlerErrorKind, Result};
+use crate::error::{HandlerError, Result};
 
 lazy_static! {
     static ref LOGGER_NAME: String =
@@ -53,9 +53,12 @@ pub struct RequestLogger(slog::Logger);
 
 impl RequestLogger {
     pub fn with_request(request: &Request<'_>) -> Result<RequestLogger> {
-        let logger = request.guard::<State<'_, RequestLogger>>().success_or(
-            HandlerErrorKind::InternalError("Internal error: No managed RequestLogger".to_owned()),
-        )?;
+        let logger =
+            request
+                .guard::<State<'_, RequestLogger>>()
+                .success_or(HandlerError::internal(
+                    "Internal error: No managed RequestLogger".to_owned(),
+                ))?;
         Ok(RequestLogger(
             logger.new(slog_o!(MozLogFields::from_request(request))),
         ))
@@ -86,11 +89,10 @@ pub fn init_logging(
         Ok(json_logging) => json_logging,
         Err(ConfigError::Missing(_)) => true,
         Err(e) => {
-            return Err(HandlerErrorKind::InternalError(format!(
+            return Err(HandlerError::internal(format!(
                 "Invalid ROCKET_JSON_LOGGING: {}",
                 e
-            ))
-            .into())
+            )))
         }
     };
 
@@ -100,11 +102,10 @@ pub fn init_logging(
             None => match get_hostname() {
                 Ok(v) => v.to_string_lossy().to_string(),
                 Err(e) => {
-                    return Err(HandlerErrorKind::InternalError(format!(
+                    return Err(HandlerError::internal(format!(
                         "Could not drain async: {}",
                         e
-                    ))
-                    .into())
+                    )))
                 }
             },
         };

@@ -11,7 +11,7 @@ use diesel::Connection;
 use rocket::request::{self, FromRequest};
 use rocket::{Config, Outcome, Request, State};
 
-use crate::error::{HandlerError, HandlerErrorKind, Result, VALIDATION_FAILED};
+use crate::error::{HandlerError, Result, VALIDATION_FAILED};
 
 pub type MysqlPool = Pool<ConnectionManager<MysqlConnection>>;
 
@@ -24,25 +24,17 @@ embed_migrations!();
 pub fn run_embedded_migrations(config: &Config) -> Result<()> {
     let database_url = config
         .get_str("database_url")
-        .map_err(|_| {
-            HandlerErrorKind::InternalError("Invalid or undefined ROCKET_DATABASE_URL".into())
-        })?
+        .map_err(|_| HandlerError::internal("Invalid or undefined ROCKET_DATABASE_URL".into()))?
         .to_string();
-    let conn = MysqlConnection::establish(&database_url).map_err(|e| {
-        HandlerErrorKind::InternalError(format!("Could not get connection: {:?}", e))
-    })?;
-    embedded_migrations::run(&conn).map_err(|e| {
-        HandlerErrorKind::InternalError(format!("Could not run migrations: {:?}", e))
-    })?;
+    let conn = MysqlConnection::establish(&database_url)?;
+    embedded_migrations::run(&conn)?;
     Ok(())
 }
 
 pub fn pool_from_config(config: &Config) -> Result<MysqlPool> {
     let database_url = config
         .get_str("database_url")
-        .map_err(|_| {
-            HandlerErrorKind::InternalError("Invalid or undefined ROCKET_DATABASE_URL".into())
-        })?
+        .map_err(|_| HandlerError::internal("Invalid or undefined ROCKET_DATABASE_URL".into()))?
         .to_string();
     let max_size = config.get_int("database_pool_max_size").unwrap_or(10) as u32;
     let use_test_transactions = config
@@ -54,9 +46,9 @@ pub fn pool_from_config(config: &Config) -> Result<MysqlPool> {
     if use_test_transactions {
         builder = builder.connection_customizer(Box::new(TestTransactionCustomizer));
     }
-    Ok(builder
+    builder
         .build(manager)
-        .map_err(|e| HandlerErrorKind::InternalError(format!("Could not build app {:?}", e)))?)
+        .map_err(|e| HandlerError::internal(format!("Could not build app {:?}", e)))
 }
 
 pub struct Conn(pub PooledConnection<ConnectionManager<MysqlConnection>>);
@@ -77,16 +69,12 @@ impl<'a, 'r> FromRequest<'a, 'r> for Conn {
         let pool = request.guard::<State<'_, MysqlPool>>().map_failure(|_| {
             (
                 VALIDATION_FAILED,
-                HandlerErrorKind::InternalError("Validation Failed".into()).into(),
+                HandlerError::internal("No Db Pool found".into()),
             )
         })?;
         match pool.get() {
             Ok(conn) => Outcome::Success(Conn(conn)),
-            Err(e) => Outcome::Failure((
-                VALIDATION_FAILED,
-                HandlerErrorKind::InternalError(format!("Could not fetch from pool {:?}", e))
-                    .into(),
-            )),
+            Err(e) => Outcome::Failure((VALIDATION_FAILED, e.into())),
         }
     }
 }

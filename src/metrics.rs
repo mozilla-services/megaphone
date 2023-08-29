@@ -13,7 +13,7 @@ use rocket::{
 };
 use slog::{error, trace, warn, Logger};
 
-use crate::error::{self, HandlerError, HandlerErrorKind};
+use crate::error::{self, HandlerError};
 use crate::logging;
 use crate::tags::Tags;
 
@@ -79,10 +79,10 @@ impl Metrics {
         let builder = match config.get_string("statsd_host") {
             Ok(statsd_host) => {
                 let socket = UdpSocket::bind("0.0.0.0:0").map_err(|e| {
-                    HandlerErrorKind::InternalError(format!("Could not start server {:?}", e))
+                    HandlerError::internal(format!("Could not start server {:?}", e))
                 })?;
                 socket.set_nonblocking(true).map_err(|e| {
-                    HandlerErrorKind::InternalError(format!("Could not start server {:?}", e))
+                    HandlerError::internal(format!("Could not start server {:?}", e))
                 })?;
 
                 let host = (
@@ -90,7 +90,7 @@ impl Metrics {
                     config.get_int("statsd_port").unwrap_or(8125) as u16,
                 );
                 let udp_sink = BufferedUdpMetricSink::from(host, socket).map_err(|e| {
-                    HandlerErrorKind::InternalError(format!("Could not start server {:?}", e))
+                    HandlerError::internal(format!("Could not start server {:?}", e))
                 })?;
                 let sink = QueuingMetricSink::from(udp_sink);
                 StatsdClient::builder(
@@ -103,11 +103,10 @@ impl Metrics {
             Err(ConfigError::Missing(_)) => Self::sink(),
             Err(e) => {
                 error!(logging, "Could not build metric: {:?}", e);
-                return Err(error::HandlerErrorKind::InternalError(format!(
+                return Err(error::HandlerError::internal(format!(
                     "Could not build metric {:?}",
                     e
-                ))
-                .into());
+                )));
             }
         };
         Ok(Metrics {

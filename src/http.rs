@@ -181,11 +181,7 @@ fn version() -> content::Json<&'static str> {
 
 #[get("/__heartbeat__")]
 fn heartbeat(conn: HandlerResult<db::Conn>, log: RequestLogger) -> status::Custom<JsonValue> {
-    let result = conn.and_then(|conn| {
-        Ok(diesel::sql_query("SELECT 1")
-            .execute(&*conn)
-            .map_err(HandlerErrorKind::DBError)?)
-    });
+    let result = conn.and_then(|conn| Ok(diesel::sql_query("SELECT 1").execute(&*conn)?));
 
     let status = match result {
         Ok(_) => Status::Ok,

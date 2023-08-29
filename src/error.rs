@@ -71,6 +71,18 @@ pub enum HandlerErrorKind {
     #[error("A database error occurred: {0}")]
     DBError(#[from] diesel::result::Error),
 
+    /// 503 Service Unavailable
+    #[error("An error occurred while establishing a db connection: {0}")]
+    DieselConnection(#[from] diesel::result::ConnectionError),
+
+    /// 503 Service Unavailable
+    #[error("A database pool error occurred: {0}")]
+    Pool(#[from] diesel::r2d2::PoolError),
+
+    /// 503 Service Unavailable
+    #[error("Error migrating the database: {0}")]
+    Migration(#[from] diesel_migrations::RunMigrationsError),
+
     /// 413 Test Error
     #[error("Oh Noes!")]
     TestError,
@@ -86,7 +98,10 @@ impl HandlerErrorKind {
             HandlerErrorKind::InternalError(_) | HandlerErrorKind::IoError(_) => {
                 Status::InternalServerError
             }
-            HandlerErrorKind::DBError(_) => Status::ServiceUnavailable,
+            HandlerErrorKind::DBError(_)
+            | HandlerErrorKind::DieselConnection(_)
+            | HandlerErrorKind::Migration(_)
+            | HandlerErrorKind::Pool(_) => Status::ServiceUnavailable,
             _ => Status::BadRequest,
         }
     }
@@ -106,7 +121,10 @@ impl HandlerErrorKind {
 
             HandlerErrorKind::IoError(_) | HandlerErrorKind::InternalError(_) => 201,
 
-            HandlerErrorKind::DBError(_) => 202,
+            HandlerErrorKind::DBError(_)
+            | HandlerErrorKind::DieselConnection(_)
+            | HandlerErrorKind::Migration(_)
+            | HandlerErrorKind::Pool(_) => 202,
 
             HandlerErrorKind::TestError => 413,
         }
@@ -116,6 +134,11 @@ impl HandlerErrorKind {
 impl HandlerError {
     pub fn kind(&self) -> &HandlerErrorKind {
         &self.inner
+    }
+
+    /// Return an InternalError with the given error message
+    pub fn internal(msg: String) -> Self {
+        HandlerErrorKind::InternalError(msg).into()
     }
 }
 
@@ -140,10 +163,15 @@ impl std::error::Error for HandlerError {
     }
 }
 
-impl From<HandlerErrorKind> for HandlerError {
-    fn from(kind: HandlerErrorKind) -> HandlerError {
+// Forward From impls to HandlerError from HandlerErrorKind. Because From is
+// reflexive, this impl also takes care of From<HandlerErrorKind>.
+impl<T> From<T> for HandlerError
+where
+    HandlerErrorKind: From<T>,
+{
+    fn from(item: T) -> Self {
         HandlerError {
-            inner: kind,
+            inner: HandlerErrorKind::from(item),
             backtrace: Backtrace::new(),
         }
     }
