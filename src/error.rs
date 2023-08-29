@@ -6,19 +6,18 @@
 /// request guards' fields).
 ///
 /// HandlerErrors are rocket Responders (render their own error responses).
-use std::fmt;
+use std::fmt::{self, Display};
 use std::result;
 
-use failure::{Backtrace, Context, Error, Fail};
+use backtrace::Backtrace;
 use rocket::http::{Header, Status};
 use rocket::response::{Responder, Response};
 use rocket::{self, response, Request, State};
 use rocket_contrib::json;
 use slog::{debug, warn};
+use thiserror::Error;
 
 use crate::logging::RequestLogger;
-
-pub type Result<T> = result::Result<T, Error>;
 
 pub type HandlerResult<T> = result::Result<T, HandlerError>;
 
@@ -28,46 +27,62 @@ pub const VALIDATION_FAILED: Status = Status::InternalServerError;
 
 #[derive(Debug)]
 pub struct HandlerError {
-    inner: Context<HandlerErrorKind>,
+    inner: HandlerErrorKind,
+    pub backtrace: Backtrace,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum HandlerErrorKind {
     /// 400 Bad Requests
-    #[fail(display = "Invalid broadcasterID (must be URL safe base64, <= 64 characters)")]
+    #[error("Invalid broadcasterID (must be URL safe base64, <= 64 characters)")]
     InvalidBroadcasterId,
-    #[fail(display = "Invalid bchannelID (must be URL safe base64, <= 128 characters)")]
+    #[error("Invalid bchannelID (must be URL safe base64, <= 128 characters)")]
     InvalidBchannelId,
 
-    #[fail(display = "Version information not included in body of update")]
+    #[error("Version information not included in body of update")]
     MissingVersionDataError,
-    #[fail(display = "Invalid Version (must be ASCII, <= 200 characters)")]
+    #[error("Invalid Version (must be ASCII, <= 200 characters)")]
     InvalidVersionDataError,
 
     /// 401 "Unauthorized" (unauthenticated)
-    #[fail(display = "Missing authorization header")]
+    #[error("Missing authorization header")]
     MissingAuth,
-    #[fail(display = "Invalid authorization header")]
+    #[error("Invalid authorization header")]
     InvalidAuth,
 
     /// 403 Forbidden (unauthorized)
-    #[fail(display = "Access denied to the requested resource")]
+    #[error("Access denied to the requested resource")]
     Unauthorized,
 
     /// 404 Not Found
-    #[fail(display = "Not Found")]
+    #[error("Not Found")]
     NotFound,
 
     /// 500 Internal Server Errors
-    #[fail(display = "Unexpected megaphone error")]
-    InternalError,
+    #[error("Unexpected megaphone error: {0}")]
+    InternalError(String),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
 
     /// 503 Service Unavailable
-    #[fail(display = "A database error occurred")]
-    DBError,
+    #[error("A database error occurred: {0}")]
+    DBError(#[from] diesel::result::Error),
+
+    /// 503 Service Unavailable
+    #[error("An error occurred while establishing a db connection: {0}")]
+    DieselConnection(#[from] diesel::result::ConnectionError),
+
+    /// 503 Service Unavailable
+    #[error("A database pool error occurred: {0}")]
+    Pool(#[from] diesel::r2d2::PoolError),
+
+    /// 503 Service Unavailable
+    #[error("Error migrating the database: {0}")]
+    Migration(#[from] diesel_migrations::RunMigrationsError),
 
     /// 413 Test Error
-    #[fail(display = "Oh Noes!")]
+    #[error("Oh Noes!")]
     TestError,
 }
 
@@ -78,8 +93,13 @@ impl HandlerErrorKind {
             HandlerErrorKind::MissingAuth | HandlerErrorKind::InvalidAuth => Status::Unauthorized,
             HandlerErrorKind::Unauthorized => Status::Forbidden,
             HandlerErrorKind::NotFound => Status::NotFound,
-            HandlerErrorKind::InternalError => Status::InternalServerError,
-            HandlerErrorKind::DBError => Status::ServiceUnavailable,
+            HandlerErrorKind::InternalError(_) | HandlerErrorKind::IoError(_) => {
+                Status::InternalServerError
+            }
+            HandlerErrorKind::DBError(_)
+            | HandlerErrorKind::DieselConnection(_)
+            | HandlerErrorKind::Migration(_)
+            | HandlerErrorKind::Pool(_) => Status::ServiceUnavailable,
             _ => Status::BadRequest,
         }
     }
@@ -97,8 +117,12 @@ impl HandlerErrorKind {
             HandlerErrorKind::Unauthorized => 122,
             HandlerErrorKind::NotFound => 123,
 
-            HandlerErrorKind::InternalError => 201,
-            HandlerErrorKind::DBError => 202,
+            HandlerErrorKind::IoError(_) | HandlerErrorKind::InternalError(_) => 201,
+
+            HandlerErrorKind::DBError(_)
+            | HandlerErrorKind::DieselConnection(_)
+            | HandlerErrorKind::Migration(_)
+            | HandlerErrorKind::Pool(_) => 202,
 
             HandlerErrorKind::TestError => 413,
         }
@@ -107,35 +131,47 @@ impl HandlerErrorKind {
 
 impl HandlerError {
     pub fn kind(&self) -> &HandlerErrorKind {
-        self.inner.get_context()
+        &self.inner
+    }
+
+    /// Return an InternalError with the given error message
+    pub fn internal(msg: String) -> Self {
+        HandlerErrorKind::InternalError(msg).into()
     }
 }
 
-impl Fail for HandlerError {
-    fn cause(&self) -> Option<&dyn Fail> {
-        self.inner.cause()
-    }
-
-    fn backtrace(&self) -> Option<&Backtrace> {
-        self.inner.backtrace()
-    }
-}
-
-impl fmt::Display for HandlerError {
+impl Display for HandlerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.inner, f)
+        write!(f, "{}", self.kind(),)?;
+
+        // Go down the chain of errors
+        let mut error: &dyn std::error::Error = &self.inner;
+        while let Some(source) = error.source() {
+            write!(f, "\n\nCaused by: {source}")?;
+            error = source;
+        }
+
+        Ok(())
     }
 }
 
-impl From<HandlerErrorKind> for HandlerError {
-    fn from(kind: HandlerErrorKind) -> HandlerError {
-        Context::new(kind).into()
+impl std::error::Error for HandlerError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.inner.source()
     }
 }
 
-impl From<Context<HandlerErrorKind>> for HandlerError {
-    fn from(inner: Context<HandlerErrorKind>) -> HandlerError {
-        HandlerError { inner }
+// Forward From impls to HandlerError from HandlerErrorKind. Because From is
+// reflexive, this impl also takes care of From<HandlerErrorKind>.
+impl<T> From<T> for HandlerError
+where
+    HandlerErrorKind: From<T>,
+{
+    fn from(item: T) -> Self {
+        HandlerError {
+            inner: HandlerErrorKind::from(item),
+            backtrace: Backtrace::new(),
+        }
     }
 }
 
@@ -149,7 +185,7 @@ impl<'r> Responder<'r> for HandlerError {
             .guard::<State<'_, Option<sentry::ClientInitGuard>>>()
             .succeeded();
         if sentry_client.is_some() {
-            sentry::capture_event(sentry_failure::event_from_fail(&self));
+            sentry::capture_event(sentry::event_from_error(&self));
         };
         match status {
             Status::Unauthorized | Status::Forbidden => {

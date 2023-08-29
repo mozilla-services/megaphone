@@ -8,21 +8,12 @@ use serde::{
 };
 use std::collections::{BTreeMap, HashMap};
 
-use crate::error::Result;
+use crate::error::{HandlerError, HandlerResult};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Tags {
     pub tags: HashMap<String, String>,
     pub extra: HashMap<String, String>,
-}
-
-impl Default for Tags {
-    fn default() -> Tags {
-        Tags {
-            tags: HashMap::new(),
-            extra: HashMap::new(),
-        }
-    }
 }
 
 impl Serialize for Tags {
@@ -93,7 +84,7 @@ impl Tags {
 }
 
 impl<'a, 'r> FromRequest<'a, 'r> for Tags {
-    type Error = failure::Error;
+    type Error = HandlerError;
 
     fn from_request(req: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
         Outcome::Success(req.guard::<State<Tags>>().unwrap().inner().clone())
@@ -101,7 +92,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for Tags {
 }
 
 impl Tags {
-    pub fn init(_config: &Config) -> Result<Self> {
+    pub fn init(_config: &Config) -> HandlerResult<Self> {
         let tags = HashMap::new();
         let extra = HashMap::new();
         /* parse the header?
@@ -125,11 +116,11 @@ impl Tags {
     }
 }
 
-impl Into<BTreeMap<String, String>> for Tags {
-    fn into(self) -> BTreeMap<String, String> {
+impl From<Tags> for BTreeMap<String, String> {
+    fn from(tags: Tags) -> BTreeMap<String, String> {
         let mut result = BTreeMap::new();
 
-        for (k, v) in self.tags {
+        for (k, v) in tags.tags {
             result.insert(k.clone(), v.clone());
         }
 

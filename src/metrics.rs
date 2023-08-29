@@ -1,8 +1,9 @@
 use std::net::UdpSocket;
+use std::sync::Arc;
 use std::time::Instant;
 
 use cadence::{
-    BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient,
+    BufferedUdpMetricSink, CountedExt, Metric, NopMetricSink, QueuingMetricSink, StatsdClient,
     StatsdClientBuilder, Timed,
 };
 use rocket::{
@@ -12,7 +13,7 @@ use rocket::{
 };
 use slog::{error, trace, warn, Logger};
 
-use crate::error;
+use crate::error::{self, HandlerError};
 use crate::logging;
 use crate::tags::Tags;
 
@@ -25,7 +26,7 @@ pub struct MetricTimer {
 
 #[derive(Debug, Clone)]
 pub struct Metrics {
-    client: Option<StatsdClient>,
+    client: Option<Arc<StatsdClient>>,
     tags: Option<Tags>,
     log: Logger,
     timer: Option<MetricTimer>,
@@ -73,18 +74,24 @@ impl Metrics {
     pub fn init(
         config: &Config,
         sentry: &Option<sentry::ClientInitGuard>,
-    ) -> error::Result<Metrics> {
+    ) -> error::HandlerResult<Metrics> {
         let logging = logging::init_logging(config, sentry)?;
         let builder = match config.get_string("statsd_host") {
             Ok(statsd_host) => {
-                let socket = UdpSocket::bind("0.0.0.0:0")?;
-                socket.set_nonblocking(true)?;
+                let socket = UdpSocket::bind("0.0.0.0:0").map_err(|e| {
+                    HandlerError::internal(format!("Could not start server {:?}", e))
+                })?;
+                socket.set_nonblocking(true).map_err(|e| {
+                    HandlerError::internal(format!("Could not start server {:?}", e))
+                })?;
 
                 let host = (
                     statsd_host.as_str(),
                     config.get_int("statsd_port").unwrap_or(8125) as u16,
                 );
-                let udp_sink = BufferedUdpMetricSink::from(host, socket)?;
+                let udp_sink = BufferedUdpMetricSink::from(host, socket).map_err(|e| {
+                    HandlerError::internal(format!("Could not start server {:?}", e))
+                })?;
                 let sink = QueuingMetricSink::from(udp_sink);
                 StatsdClient::builder(
                     &config
@@ -96,15 +103,18 @@ impl Metrics {
             Err(ConfigError::Missing(_)) => Self::sink(),
             Err(e) => {
                 error!(logging, "Could not build metric: {:?}", e);
-                Err(error::HandlerErrorKind::InternalError)?
+                return Err(error::HandlerError::internal(format!(
+                    "Could not build metric {:?}",
+                    e
+                )));
             }
         };
         Ok(Metrics {
-            client: Some(
+            client: Some(Arc::new(
                 builder
                     .with_error_handler(|err| println!("Metric send error: {:?}", err))
                     .build(),
-            ),
+            )),
             log: logging.clone(),
             timer: None,
             tags: Some(Tags::init(config)?),
@@ -125,7 +135,7 @@ impl Metrics {
             }
             for key in mtags.tags.keys().clone() {
                 if let Some(val) = mtags.tags.get(key) {
-                    tagged = tagged.with_tag(&key, val.as_ref());
+                    tagged = tagged.with_tag(key, val.as_ref());
                 }
             }
             // Include any "hard coded" tags.
@@ -146,7 +156,7 @@ impl Metrics {
             let mtags = tags.unwrap_or_default();
             for key in mtags.tags.keys().clone() {
                 if let Some(val) = mtags.tags.get(key) {
-                    tagged = tagged.with_tag(&key, val.as_ref());
+                    tagged = tagged.with_tag(key, val.as_ref());
                 }
             }
             match tagged.try_send() {
@@ -162,7 +172,7 @@ impl Metrics {
 }
 
 impl<'a, 'r> FromRequest<'a, 'r> for Metrics {
-    type Error = failure::Error;
+    type Error = HandlerError;
 
     fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
         Outcome::Success(
