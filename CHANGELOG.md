@@ -1,3 +1,14 @@
+<a name=""></a>
+##  (2023-08-29)
+
+
+#### Chore
+
+*   Update 2023-06 (#108) ([94dfd04b](https://github.com/mozilla-services/megaphone/commit/94dfd04b3793c496c4a0cacdee09b92543d1da42))
+*   tag 0.2.0 (#98) ([8471abc6](https://github.com/mozilla-services/megaphone/commit/8471abc6c31ddc62f13ad8b05f30e477e22c0338))
+
+
+
 <a name="0.2.0"></a>
 ## 0.2.0 (2021-09-28)
 

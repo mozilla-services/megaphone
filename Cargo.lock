@@ -1014,7 +1014,7 @@ checksum = "2532096657941c2fea9c289d370a250971c689d4f143798ff67113ec042024a5"
 
 [[package]]
 name = "megaphone"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "backtrace",
  "cadence",
@@ -1022,6 +1022,8 @@ dependencies = [
  "diesel_migrations",
  "lazy_static",
  "mozsvc-common",
+ "openssl",
+ "openssl-sys",
  "regex",
  "rocket",
  "rocket_contrib",
