@@ -2,6 +2,17 @@
 
 # Megaphone
 
+## Current Status
+
+Megaphone is in a weird space right now.
+
+It was created fairly early on, using the Rocket framework, partly as an experiment. It has been somewhat neglected for a while and the dependencies have decayed quite a bit. That said, it continues to operate as is.
+
+In an ideal world, it would be rewritten in something... better. There's debate if that's Python3 or rust using a different framework (actix or axum). Unfortunately, that's not a high priority item for the current team.
+
+Suffice to say, this project is not quite abandoned, not quite supported, and may only exist to make one developer sad when they have to do their round of quarterly updates.
+
+
 ## What is it?
 
 Megaphone is an internal Mozilla system providing global broadcasts for Firefox.
