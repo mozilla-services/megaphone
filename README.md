@@ -1,5 +1,7 @@
 [![License: MPL 2.0][mpl-svg]][mpl] [![Test Status][travis-badge]][travis] [![Build Status][circleci-badge]][circleci] [![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
 
+**This repo is no longer actively used. It is _STRONGLY_ recommended that this server be re-written as there are several significantly out-of-date dependencies and constructs.**
+
 # Megaphone
 
 ## What is it?
